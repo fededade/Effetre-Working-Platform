@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Effetre Properties - Analisi Documentale</title>
+    
+    <!-- ⭐ FIREBASE -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- LIBRERIE ESTERNE -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- PDF.JS NECESSARIO PER ANALISI DOCUMENTALE -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; background-color: #f3f4f6; }
+        
+        /* STILI BASE EFFETRE */
+        .pratica-disponibile { background-color: #e0f2fe; }
+        .pratica-in-lavorazione { background-color: #e5e7eb; opacity: 0.7; }
+        .pratica-sospesa { background-color: #fee2e2; }
+        .pratica-completata { background-color: #d1fae5; }
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .badge {
+            display: inline-block; padding: 0.25rem 0.75rem;
+            border-radius: 9999px; font-size: 0.75rem; font-weight: 600;
+        }
+        .badge-disponibile { background-color: #3b82f6; color: white; }
+        .badge-in-lavorazione { background-color: #6b7280; color: white; }
+        .badge-sospesa { background-color: #ef4444; color: white; }
+        .badge-completata { background-color: #10b981; color: white; }
+        .badge-eliminata { background-color: #9ca3af; color: white; }
+        .badge-prelavorata { background-color: #f59e0b; color: white; }
+        
+        .pratica-eliminata { background-color: #f3f4f6 !important; opacity: 0.6; }
+        .pratica-eliminata td { color: #9ca3af !important; }
+        
+        .stato-select {
+            font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 9999px;
+            border: 2px solid #3b82f6; background-color: white; color: #3b82f6; font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .stato-select:hover { background-color: #3b82f6; color: white; }
+        
+        .reminder-badge { background-color: #dc2626; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; margin-left: 0.5rem; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        
+        .giorno-card { border-left: 4px solid #3b82f6; }
+        .row-hover:hover { background-color: #f0f9ff; cursor: pointer; }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+            color: #1a1a1a; font-weight: bold; padding: 1.5rem 3rem;
+            border-radius: 0.75rem; transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+            font-size: 1.125rem; border: none; cursor: pointer;
+        }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(212, 175, 55, 0.6); }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%);
+            color: white; font-weight: bold; padding: 1.5rem 3rem;
+            border-radius: 0.75rem; transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(75, 85, 99, 0.4);
+            font-size: 1.125rem; border: none; cursor: pointer;
+        }
+        .btn-secondary:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(75, 85, 99, 0.6); }
+        
+        .upload-zone-kml {
+            border: 3px dashed #d4af37; background-color: #2a2a2a;
+            transition: all 0.3s; padding: 3rem; border-radius: 0.75rem;
+            cursor: pointer; text-align: center;
+        }
+        .upload-zone-kml:hover { border-color: #f4d03f; background-color: #3a3a3a; }
+        .upload-zone-kml.dragover { border-color: #f4d03f; background-color: #4a4a4a; }
+        
+        .home-screen {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            display: flex; align-items: center; justify-content: center;
+        }
+        
+        .firebase-status {
+            position: fixed; bottom: 20px; right: 20px; padding: 8px 16px;
+            border-radius: 20px; font-size: 12px; font-weight: bold; z-index: 1000;
+        }
+        .firebase-connected { background-color: #10b981; color: white; }
+        .firebase-disconnected { background-color: #ef4444; color: white; }
+        
+        /* STILI AGGIUNTI PER ANALISI AI */
+        .doc-section {
+            background-color: white; border-radius: 0.5rem; padding: 1.5rem; 
+            margin-bottom: 1.5rem; border: 1px solid #e5e7eb;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .doc-title {
+            font-size: 1.1rem; font-weight: 700; color: #1f2937; 
+            margin-bottom: 1rem; border-bottom: 2px solid #d4af37; 
+            padding-bottom: 0.5rem; display: flex; justify-content: space-between;
+        }
+        .field-label { font-size: 0.85rem; font-weight: 600; color: #6b7280; margin-bottom: 0.25rem; }
+        .field-value {
+            width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; 
+            border-radius: 0.375rem; font-size: 0.95rem; background-color: #f9fafb;
+        }
+        .animate-fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .highlight-unit { background-color: #dbeafe; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #1e40af; }
+        .highlight-unit-visura { background-color: #dcfce7; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #166534; }
+        .tech-details { font-size: 0.8rem; color: #6b7280; margin-top: 2px; display: block; font-family: monospace; }
+        .note-box { border: 1px solid #fca5a5; background-color: #fef2f2; padding: 10px; border-radius: 6px; font-size: 0.9rem; color: #991b1b; margin-top: 8px; }
+        .title-type { font-weight: 800; color: #374151; }
+        .badge-ante67 {
+            background-color: #e0f2fe; border: 2px solid #3b82f6; color: #1e40af;
+            font-weight: 800; text-align: center; padding: 0.75rem; border-radius: 0.5rem;
+            margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+        }
+        
+        .upload-zone { transition: all 0.3s ease; cursor: pointer; }
+        .drag-active { background-color: #e0f2fe !important; border-color: #3b82f6 !important; transform: scale(1.02); }
+        .file-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: #fff; border: 1px solid #e5e7eb; padding: 8px 12px;
+            border-radius: 6px; margin-top: 8px; font-size: 0.9rem;
+        }
+        .file-remove { color: #ef4444; cursor: pointer; font-weight: bold; padding: 2px 6px; }
+        .file-remove:hover { background-color: #fee2e2; border-radius: 4px; }
+        
+        /* STILI PER BANDA VERTICALE UNITA' */
+        .visura-container { display: flex; border: 1px solid #e5e7eb; border-radius: 0.5rem; overflow: hidden; margin-bottom: 1rem; background-color: #fff; }
+        .vertical-band {
+            width: 40px; display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 800; font-size: 0.75rem; text-transform: uppercase;
+            writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 2px;
+        }
+        .band-color-0 { background-color: #3b82f6; } /* Blu */
+        .band-color-1 { background-color: #10b981; } /* Verde */
+        .band-color-2 { background-color: #8b5cf6; } /* Viola */
+        .band-color-3 { background-color: #f59e0b; } /* Arancio */
+        .visura-content { flex: 1; padding: 1rem; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        if (window.pdfjsLib) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        // ============================================================
+        // FIREBASE INIT
+        // ============================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAxuZxv3_7w4cR01W4dRrGOJ3-qbSsL868",
+            authDomain: "gestionale-effetre.firebaseapp.com",
+            projectId: "gestionale-effetre",
+            storageBucket: "gestionale-effetre.firebasestorage.app",
+            messagingSenderId: "418072647086",
+            appId: "1:418072647086:web:bbba16fa2e6c6140fee43f",
+            measurementId: "G-DYSPC79396"
+        };
+
+        let db = null;
+        let firebaseInitialized = false;
+        
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            firebaseInitialized = true;
+            console.log('✅ Firebase inizializzato correttamente');
+        } catch (error) {
+            console.error('❌ Errore inizializzazione Firebase:', error);
+        }
+
+        const UTENTI_INIZIALI = [
+            { id: 'Davide', nome: 'Davide Federico', email: 'davide@effetre.it', ruolo: 'Super Amministratore', username: 'Davide', password: 'Davide123', isAdmin: true, isSuperAdmin: true },
+            { id: 'IlariaC', nome: 'Ilaria Congiu', email: 'ilaria@effetre.it', ruolo: 'Tecnico', username: 'IlariaC', password: 'Giulia123', isAdmin: false, isSuperAdmin: false },
+            { id: 'ChiaraP', nome: 'Chiara Pardile', email: 'chiara@effetre.it', ruolo: 'Amministratore', username: 'ChiaraP', password: 'Chiara123', isAdmin: true, isSuperAdmin: false },
+            { id: 'CristinaP', nome: 'Cristina Popa', email: 'cristina@effetre.it', ruolo: 'Tecnico', username: 'CristinaP', password: 'Cristina123', isAdmin: false, isSuperAdmin: false },
+            { id: 'TatianaC', nome: 'Tatiana Caloni', email: 'tatiana@effetre.it', ruolo: 'Tecnico', username: 'TatianaC', password: 'Tatiana123', isAdmin: false, isSuperAdmin: false }
+        ];
+
+        // LOGO RIMOSSO PER EVITARE CRASH
+        const LOGO_BASE64 = ""; // Inserisci qui il base64 se necessario
+
+        // ============================================================
+        // FUNZIONI ANALISI AI (Gemini) + PDF Helper
+        // ============================================================
+        const fileToBase64 = (file) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = (error) => reject(error);
+            });
+        };
+
+        // Funzione di utilità per il ritardo
+        const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Modifica: Aggiunta logica di RETRY automatico per errore 429 (Resource Exhausted)
+        const interrogaGemini = async (apiKey, model, fileAtto, filesVisura, updateStatus) => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            
+            // Preparazione payload (pesante, ma necessaria)
+            if (updateStatus) updateStatus('Conversione documenti in corso...');
+            const base64Atto = await fileToBase64(fileAtto);
+            const visureBase64Promises = filesVisura.map(file => fileToBase64(file));
+            const visureBase64 = await Promise.all(visureBase64Promises);
+
+            const parts = [];
+            
+            const systemInstruction = `
+            Sei un esperto legale immobiliare e urbanistico italiano. Analizza i documenti PDF allegati.
+            Il primo documento è l'ATTO DI PROVENIENZA.
+            I documenti successivi sono TUTTE VISURE CATASTALI.
+
+            OBIETTIVO: Analizza l'atto e confrontalo con le visure catastali.
+
+            ISTRUZIONI SPECIALI PER VISURE E UNITA':
+            1. **UNIONE UNITA'**: Se in una visura i dati appaiono "spacchettati" su più righe ma si riferiscono alla stessa unità funzionale (es. subalterno 503 graffato al 504, o abitazione + cantina elencate in sequenza ma parte della stessa proprietà), DEVI UNIRLI in un unico oggetto "immobile" logico. NON creare voci separate se sono la stessa unità.
+            
+            2. **FILTRO VARIAZIONI STORICHE**: 
+               Nel campo "variazioniStoriche", devi riportare le variazioni intervenute DOPO la data dell'atto, MA con un filtro preciso:
+               - **RIPORTA TASSATIVAMENTE** le variazioni di natura TECNICA/URBANISTICA/EDILIZIA, quali: "Diversa distribuzione spazi interni", "Ampliamento", "Divisione", "Frazionamento", "Fusione", "Demolizione parziale/totale", "Sopraelevazione", "Ristrutturazione", "Variazione toponomastica", "Cambio destinazione d'uso", "Esatta rappresentazione grafica". Queste DEVONO essere segnalate.
+               - **NON RIPORTARE (IGNORA)** le variazioni puramente AMMINISTRATIVE o di TITOLARITÀ, quali: "Compravendita", "Successione", "Denuncia nei passaggi per causa di morte", "Ricongiungimento di usufrutto", "Voltura", "Rettifica intestazione all'attualità". Queste non costituiscono alterazione urbanistica.
+
+            3. **AZIONI RICHIESTE E CONFORMITA' (CRUCIALE)**:
+               - **REGOLA AUREA CONFORMITA'**: Se i dati identificativi catastali (Foglio, Particella/Mappale, Subalterno) citati nell'atto COINCIDONO con quelli presenti in visura, l'esito base è "CONFORME", anche se successivamente ci sono state ristrutturazioni (es. diversa distribuzione interna).
+               - **VARIAZIONI**: Se ci sono variazioni tecniche post-atto (es. diversa distribuzione), ELENCALE nel campo "azioni" come promemoria, ma NON usare lo stato "NON CONFORME" se l'unità è correttamente identificata.
+               - Usa "NON CONFORME" solo se: i dati identificativi non corrispondono, l'unità è stata soppressa/fusa (quindi non esiste più con quel subalterno), o se c'è un errore palese nei titolari.
+               - Nel campo "azioni", NON scrivere consigli generici. Riporta SOLO le variazioni tecniche post-atto (es. "Variazione del 10/10/2023: Diversa distribuzione spazi interni...").
+
+            4. **TITOLI EDILIZI (URBANISTICA)**:
+               - Estrai **TUTTI** i titoli edilizi menzionati (CILA, SCIA, DIA, Licenza, Concessione, Condono) inserendoli UNO AD UNO nell'array "elencoTitoli".
+               - **IMPORTANTE**: NON inserire mai "Atto di provenienza" o "Rogito" nella lista dei titoli edilizi. L'atto di provenienza non è un titolo edilizio.
+               - Ordina i titoli per data.
+
+            5. **LIMITE DI LETTURA**: L'analisi dell'Atto DEVE FERMARSI alla chiusura dell'atto (firme). IGNORA planimetrie allegate, APE e note di trascrizione finali.
+
+            Estrai i dati seguendo rigorosamente questa struttura JSON:
+            {
+                "atto": {
+                    "tipo": "String", "data": "GG/MM/AAAA", "repertorio": "String",
+                    "notaio": "String", "prezzo": "String",
+                    "unitaImmobiliari": [
+                        { "tipologia": "String", "coordinate": "String", "dettagli": "String", "descrizione": "String (Riporta il testo descrittivo completo per dare rilevanza)" }
+                    ],
+                    "noteCatastali": "String",
+                    "ante67": "Boolean",
+                    "elencoTitoli": [
+                        { "tipo": "String", "dettagli": "String" }
+                    ],
+                    "noteUrbanistiche": "String (NON includere l'atto di provenienza qui)",
+                    "convenzioni": "String"
+                },
+                "visureAnalizzate": [
+                    {
+                        "titolo": "String (es. 'Unità 1')",
+                        "datiAttuali": [
+                            { "tipologia": "String", "coordinate": "String", "indirizzo": "String", "dettagli": "String" }
+                        ],
+                        "intestatari": "String", 
+                        "ultimaVariazione": "String",
+                        "corrispondenzaAtto": "Boolean",
+                        "variazioniStoriche": [
+                            { "data": "String", "descrizione": "String (Copia fedele dalla visura)" }
+                        ]
+                    }
+                ],
+                "analisi": {
+                    "dettaglioEsiti": [
+                        {
+                            "identificativo": "String",
+                            "status": "String (CONFORME, NON CONFORME, ATTENZIONE)",
+                            "messaggio": "String (Se Identificativi corrispondono, scrivi 'Dati identificativi conformi')",
+                            "azioni": [ "String (Elenco delle sole variazioni tecniche successive all'atto)" ]
+                        }
+                    ]
+                }
+            }
+            `;
+            
+            parts.push({ text: systemInstruction });
+            parts.push({ text: "DOCUMENTO 1: ATTO DI PROVENIENZA" });
+            parts.push({ inlineData: { mimeType: fileAtto.type, data: base64Atto } });
+
+            visureBase64.forEach((b64, index) => {
+                parts.push({ text: `DOCUMENTO VISURA ${index + 1} (Consideralo come possibile Unità ${index + 1})` });
+                parts.push({ inlineData: { mimeType: filesVisura[index].type, data: b64 } });
+            });
+
+            const payload = { contents: [{ parts: parts }] };
+
+            // LOGICA DI RETRY CON EXPONENTIAL BACKOFF
+            const maxRetries = 3;
+            let attempt = 0;
+            
+            while (attempt < maxRetries) {
+                try {
+                    if (updateStatus) updateStatus(attempt > 0 ? `Tentativo ${attempt + 1} di ${maxRetries}... (Server occupati)` : 'Analisi AI in corso...');
+                    
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        
+                        // Se l'errore è 429 (Too Many Requests) o 503 (Service Unavailable)
+                        if (response.status === 429 || response.status === 503) {
+                            console.warn(`Errore ${response.status}: Resource exhausted. Riprovo...`);
+                            attempt++;
+                            if (attempt < maxRetries) {
+                                // Attendi: 2s, 4s, 8s
+                                const delay = Math.pow(2, attempt) * 1000; 
+                                if (updateStatus) updateStatus(`⚠️ Server AI occupati. Riprovo tra ${delay/1000} secondi...`);
+                                await sleep(delay);
+                                continue; // Riprova il ciclo
+                            }
+                        }
+                        
+                        throw new Error(`Errore API Gemini (${response.status}): ${errorData.error?.message || response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    if (!data.candidates || !data.candidates[0]?.content?.parts?.[0]?.text) {
+                        throw new Error("Nessuna risposta valida da Gemini");
+                    }
+
+                    let textResponse = data.candidates[0].content.parts[0].text;
+                    textResponse = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+                    
+                    return JSON.parse(textResponse);
+
+                } catch (error) {
+                    // Se abbiamo finito i tentativi o è un errore diverso da 429/503
+                    if (attempt >= maxRetries || !error.message.includes('429') && !error.message.includes('503')) {
+                        console.error("Errore analisi Gemini finale:", error);
+                        throw error;
+                    }
+                    // Altrimenti il ciclo while continua se abbiamo tentativi
+                }
+            }
+        };
+
+        // ============================================================
+        // COMPONENTI UI
+        // ============================================================
+        
+        // Error Boundary
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+            static getDerivedStateFromError(error) { return { hasError: true, error }; }
+            componentDidCatch(error, errorInfo) { console.error("Uncaught error:", error, errorInfo); }
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center bg-red-50 p-4">
+                            <div className="bg-white p-8 rounded-lg shadow-xl max-w-lg w-full border-l-4 border-red-500">
+                                <h1 className="text-2xl font-bold text-red-600 mb-4">⚠️ Si è verificato un errore</h1>
+                                <pre className="bg-gray-100 p-4 rounded text-xs overflow-auto max-h-40 text-red-800">
+                                    {this.state.error && this.state.error.toString()}
+                                </pre>
+                                <button onClick={() => window.location.reload()} className="mt-6 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 w-full font-bold">Ricarica Pagina</button>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children; 
+            }
+        }
+
+        // Dashboard Statistiche
+        function DashboardStatistiche({ pratiche, utenti, periodoStats, setPeriodoStats, calcolaStatistiche, setVistaStatistiche, setPraticaSelezionata, setMostraModal }) {
+            const [stats, setStats] = useState(null);
+            const chartUtentiRef = useRef(null);
+            const chartUtentiInstance = useRef(null);
+            
+            useEffect(() => {
+                const newStats = calcolaStatistiche();
+                setStats(newStats);
+            }, [periodoStats, pratiche]);
+            
+            useEffect(() => {
+                if (!stats || !window.Chart || !chartUtentiRef.current) return;
+                
+                if (chartUtentiInstance.current) chartUtentiInstance.current.destroy();
+                
+                const ctx = chartUtentiRef.current.getContext('2d');
+                chartUtentiInstance.current = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: stats.statsPerUtente.map(s => s.utente),
+                        datasets: [
+                            { label: 'Completate', data: stats.statsPerUtente.map(s => s.completate), backgroundColor: '#10b981' },
+                            { label: 'In Lavorazione', data: stats.statsPerUtente.map(s => s.inLavorazione), backgroundColor: '#6b7280' },
+                            { label: 'Sospese', data: stats.statsPerUtente.map(s => s.sospese), backgroundColor: '#ef4444' }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'top' }, title: { display: true, text: 'Pratiche per Utente' } },
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                    }
+                });
+                
+                return () => { if (chartUtentiInstance.current) chartUtentiInstance.current.destroy(); };
+            }, [stats]);
+            
+            if (!stats) return <div className="text-center py-8">Caricamento statistiche...</div>;
+            
+            return (
+                <div className="space-y-6">
+                    <div className="bg-white rounded-lg shadow-md p-6 flex justify-between items-center">
+                        <div><h2 className="text-2xl font-bold text-gray-800">📊 Dashboard Statistiche</h2><p className="text-gray-600 mt-1">Analisi attività</p></div>
+                        <div className="flex gap-2">
+                            {['giorno', 'settimana', 'mese'].map(p => (
+                                <button key={p} onClick={() => setPeriodoStats(p)} className={`px-4 py-2 rounded-lg font-medium transition-colors ${periodoStats === p ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>{p === 'giorno' ? 'Oggi' : p === 'settimana' ? 'Settimana' : 'Mese'}</button>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-lg shadow-md p-6"><div className="text-gray-600 text-sm font-medium">Totale Periodo</div><div className="text-3xl font-bold text-blue-600 mt-2">{stats.totaliPeriodo.totale}</div></div>
+                        <div className="bg-white rounded-lg shadow-md p-6"><div className="text-gray-600 text-sm font-medium">Completate</div><div className="text-3xl font-bold text-green-600 mt-2">{stats.totaliPeriodo.completate}</div></div>
+                        <div className="bg-white rounded-lg shadow-md p-6"><div className="text-gray-600 text-sm font-medium">In Lavorazione</div><div className="text-3xl font-bold text-gray-600 mt-2">{stats.distribuzioneStati.inLavorazione}</div></div>
+                        <div className="bg-white rounded-lg shadow-md p-6"><div className="text-gray-600 text-sm font-medium">Sospese</div><div className="text-3xl font-bold text-red-600 mt-2">{stats.distribuzioneStati.sospese}</div></div>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        <div style={{ height: '300px' }}><canvas ref={chartUtentiRef}></canvas></div>
+                    </div>
+                </div>
+            );
+        }
+
+        // COMPONENTE ANALISI AUTOMATICA (DAL GESTIONALE)
+        function AnalisiAutomatica({ user, onBack }) {
+            const [fase, setFase] = useState('upload'); 
+            const [files, setFiles] = useState({ atto: null, visure: [] });
+            const [loading, setLoading] = useState(false);
+            const [loadingMessage, setLoadingMessage] = useState('');
+            const [dati, setDati] = useState(null);
+            const [apiKey, setApiKey] = useState('');
+            const [model, setModel] = useState('gemini-2.5-flash');
+            
+            const [isDraggingAtto, setIsDraggingAtto] = useState(false);
+            const [isDraggingVisure, setIsDraggingVisure] = useState(false);
+
+            useEffect(() => {
+                const savedKey = localStorage.getItem('gemini_api_key');
+                if (savedKey) setApiKey(savedKey); else setFase('config');
+            }, []);
+
+            const salvaConfig = () => {
+                if(apiKey.trim().length > 10) {
+                    localStorage.setItem('gemini_api_key', apiKey);
+                    setFase('upload');
+                } else alert("API Key non valida");
+            };
+
+            const handleAttoChange = (file) => { setFiles(prev => ({ ...prev, atto: file })); };
+            const handleVisureChange = (newFiles) => {
+                const fileArray = Array.from(newFiles);
+                setFiles(prev => ({ ...prev, visure: [...prev.visure, ...fileArray] }));
+            };
+            const rimuoviVisura = (index) => {
+                setFiles(prev => ({ ...prev, visure: prev.visure.filter((_, i) => i !== index) }));
+            };
+
+            const onDragOver = (e, setDragState) => { e.preventDefault(); e.stopPropagation(); setDragState(true); };
+            const onDragLeave = (e, setDragState) => { e.preventDefault(); e.stopPropagation(); setDragState(false); };
+            const onDrop = (e, setDragState, callback) => {
+                e.preventDefault(); e.stopPropagation(); setDragState(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) callback(e.dataTransfer.files);
+            };
+
+            const eseguiAnalisiReale = async () => {
+                if (!files.atto || files.visure.length === 0) return alert('Carica atto e almeno una visura.');
+                setLoading(true);
+                setLoadingMessage(`Analisi in corso con ${model}...`);
+                try {
+                    // Passiamo setLoadingMessage per aggiornare lo stato durante i retry
+                    const jsonDati = await interrogaGemini(apiKey, model, files.atto, files.visure, setLoadingMessage);
+                    
+                    // Normalizziamo l'output se per caso Gemini restituisce la vecchia struttura
+                    if (jsonDati.visura && !jsonDati.visureAnalizzate) {
+                        jsonDati.visureAnalizzate = [{
+                            titolo: "Unità 1",
+                            datiAttuali: jsonDati.visura.immobili || [],
+                            intestatari: jsonDati.visura.intestatari,
+                            ultimaVariazione: jsonDati.visura.ultimaVariazione,
+                            corrispondenzaAtto: true,
+                            variazioniStoriche: []
+                        }];
+                    }
+                    
+                    setDati(jsonDati);
+                    setFase('risultati');
+                } catch (error) {
+                    alert(`Errore definitivo: ${error.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            if (fase === 'config') {
+                return (
+                    <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+                        <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full">
+                            <h2 className="text-2xl font-bold mb-4 text-purple-600">Configurazione AI</h2>
+                            <div className="mb-6">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">API Key Gemini</label>
+                                <input type="password" className="w-full border p-3 rounded" placeholder="Incolla qui la tua API Key" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={salvaConfig} className="flex-1 bg-purple-600 text-white py-2 rounded font-bold">Salva</button>
+                                {/* Rimossa opzione annulla in fase config se non c'è home */}
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50 p-6 animate-fade-in">
+                    <div className="max-w-6xl mx-auto mb-6 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            {/* MODIFICA: SOSTITUITO LOGO BOT CON IMMAGINE FILE E CAMBIATO TITOLO */}
+                            <img src="Logo Effetre_1.jpg" alt="Logo" className="h-16 w-16 object-contain rounded" onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/64?text=LOGO'; }} />
+                            <h2 className="text-3xl font-bold text-gray-800">Analisi documentale approfondita</h2>
+                            <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded border border-purple-200">⚡ {model}</span>
+                        </div>
+                        
+                        {/* MODIFICA: PULSANTI HEADER RIORGANIZZATI CON PULSANTE CHIUDI FISICO */}
+                        <div className="flex items-center gap-6">
+                            <button onClick={() => setFase('config')} className="flex items-center gap-2 text-gray-500 hover:text-purple-600 font-medium transition-colors">
+                                <span>⚙️</span>
+                                <span>Configura</span>
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    window.close();
+                                    // Fallback: se il browser non si chiude subito (perché bloccato dalla sicurezza), avvisa l'utente
+                                    setTimeout(() => {
+                                        if (!window.closed) {
+                                            alert("Il browser non permette la chiusura automatica di questa pagina. Per favore chiudi la scheda manualmente.");
+                                        }
+                                    }, 1000);
+                                }} 
+                                className="group flex items-center justify-center w-10 h-10 rounded-full border-2 border-red-100 text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all shadow-sm"
+                                title="Chiudi applicazione"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-8">
+                        {fase === 'upload' && (
+                            <div className="space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div 
+                                        className={`upload-zone border-2 border-dashed rounded-lg p-6 text-center transition-colors relative ${isDraggingAtto ? 'drag-active' : 'border-blue-300 hover:bg-blue-50'}`}
+                                        onDragOver={(e) => onDragOver(e, setIsDraggingAtto)}
+                                        onDragLeave={(e) => onDragLeave(e, setIsDraggingAtto)}
+                                        onDrop={(e) => onDrop(e, setIsDraggingAtto, (files) => handleAttoChange(files[0]))}
+                                    >
+                                        <div className="text-4xl mb-3">📄</div>
+                                        <h3 className="font-bold text-lg mb-2">Atto di Provenienza</h3>
+                                        <p className="text-xs text-gray-400 mb-3">Trascina qui il file o clicca</p>
+                                        <input type="file" accept=".pdf, .jpg, .png" onChange={(e) => handleAttoChange(e.target.files[0])} className="hidden" id="atto-upload" />
+                                        <label htmlFor="atto-upload" className="cursor-pointer bg-blue-100 text-blue-700 px-4 py-2 rounded-full font-bold text-sm hover:bg-blue-200">Seleziona File</label>
+                                        {files.atto && <div className="mt-4 text-green-600 text-sm font-bold bg-green-50 p-2 rounded">✅ {files.atto.name}</div>}
+                                    </div>
+
+                                    <div 
+                                        className={`upload-zone border-2 border-dashed rounded-lg p-6 text-center transition-colors relative ${isDraggingVisure ? 'drag-active' : 'border-green-300 hover:bg-green-50'}`}
+                                        onDragOver={(e) => onDragOver(e, setIsDraggingVisure)}
+                                        onDragLeave={(e) => onDragLeave(e, setIsDraggingVisure)}
+                                        onDrop={(e) => onDrop(e, setIsDraggingVisure, (files) => handleVisureChange(files))}
+                                    >
+                                        <div className="text-4xl mb-3">🗺️</div>
+                                        <h3 className="font-bold text-lg mb-2">Visure Catastali (Multiple)</h3>
+                                        <p className="text-xs text-gray-400 mb-3">Trascina qui i file o clicca</p>
+                                        <input type="file" multiple accept=".pdf, .jpg, .png" onChange={(e) => handleVisureChange(e.target.files)} className="hidden" id="visura-upload" />
+                                        <label htmlFor="visura-upload" className="cursor-pointer bg-green-100 text-green-700 px-4 py-2 rounded-full font-bold text-sm hover:bg-green-200">Aggiungi File</label>
+                                        
+                                        <div className="mt-4 text-left max-h-40 overflow-y-auto">
+                                            {files.visure.length > 0 && <p className="text-xs font-bold text-gray-500 mb-1">File caricati:</p>}
+                                            {files.visure.map((file, index) => (
+                                                <div key={index} className="file-item">
+                                                    <span className="truncate max-w-xs">{file.name}</span>
+                                                    <span className="file-remove" onClick={() => rimuoviVisura(index)}>✕</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="text-center mt-8">
+                                    {loading ? (
+                                        <div className="flex flex-col items-center bg-purple-50 p-6 rounded-lg border border-purple-200">
+                                            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-purple-600 mb-4"></div>
+                                            <p className="text-lg font-bold text-purple-700 animate-pulse">{loadingMessage}</p>
+                                            <p className="text-xs text-purple-500 mt-2">Potrebbe richiedere un po' di tempo se i file sono pesanti...</p>
+                                        </div>
+                                    ) : (
+                                        <button onClick={eseguiAnalisiReale} disabled={!files.atto || files.visure.length === 0} className={`px-8 py-4 rounded-lg font-bold text-lg shadow-lg transition-all ${files.atto && files.visure.length > 0 ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700 transform hover:-translate-y-1' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>✨ AVVIA ANALISI AI</button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {fase === 'risultati' && dati && (
+                            <div className="animate-fade-in">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                                    <div className="doc-section border-l-4 border-l-blue-500">
+                                        <div className="doc-title text-blue-800"><span>📄 Dati da Atto Provenienza</span></div>
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div><label className="field-label">Tipo Atto</label><div className="field-value font-bold">{dati.atto.tipo || '-'}</div></div>
+                                                <div><label className="field-label">Data</label><div className="field-value">{dati.atto.data || '-'}</div></div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div><label className="field-label">Repertorio</label><div className="field-value text-sm">{dati.atto.repertorio || '-'}</div></div>
+                                                {/* MODIFICA 1: Rimossa formattazione rossa/grassetto da Notaio e Prezzo */}
+                                                <div><label className="field-label">Notaio</label><div className="field-value">{dati.atto.notaio || '-'}</div></div>
+                                                <div><label className="field-label">Prezzo</label><div className="field-value">{dati.atto.prezzo || '-'}</div></div>
+                                            </div>
+                                            <div className="pt-2 border-t mt-2">
+                                                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Immobili in Atto</p>
+                                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 space-y-3">
+                                                    {dati.atto.unitaImmobiliari?.map((immobile, index) => (
+                                                        <div key={index} className="mb-2">
+                                                            <div><span className="highlight-unit text-sm">{immobile.tipologia}</span><span className="ml-2 text-sm font-semibold text-gray-800">{immobile.coordinate}</span></div>
+                                                            {/* MODIFICA 2: Aumentata rilevanza visiva descrizione (non più xs italic) */}
+                                                            {immobile.descrizione && <div className="text-sm text-gray-800 mt-1 border-t border-blue-200 pt-1 leading-snug">{immobile.descrizione}</div>}
+                                                        </div>
+                                                    ))}
+                                                    {dati.atto.noteCatastali && (<div className="note-box"><strong>Note: </strong>{dati.atto.noteCatastali}</div>)}
+                                                </div>
+                                            </div>
+                                            <div className="pt-2 border-t mt-2">
+                                                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Dati Urbanistici</p>
+                                                <div className="bg-white border rounded p-3">
+                                                    {dati.atto.ante67 && (<div className="badge-ante67"><span>✅ COSTRUZIONE ANTE 01/09/1967</span></div>)}
+                                                    {dati.atto.elencoTitoli?.length > 0 ? (
+                                                        <ul className="list-disc pl-4 space-y-2 mb-3">
+                                                            {/* MODIFICA 3 & 4: Filtro Provenienza e Lista Ordinata */}
+                                                            {dati.atto.elencoTitoli
+                                                                .filter(t => !t.tipo.toLowerCase().includes('provenienza') && !t.dettagli.toLowerCase().includes('provenienza') && !t.tipo.toLowerCase().includes('rogito'))
+                                                                .map((titolo, index) => (
+                                                                <li key={index} className="text-sm text-gray-700 border-b border-gray-100 pb-1 last:border-0"><span className="title-type underline decoration-blue-500">{titolo.tipo}</span>: {titolo.dettagli}</li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : (!dati.atto.ante67 && <div className="text-sm text-gray-400 italic mb-2">Nessun titolo edilizio specifico trovato.</div>)}
+                                                     {dati.atto.noteUrbanistiche && (<div className="note-box border-orange-200 bg-orange-50 text-orange-900"><strong>Note: </strong>{dati.atto.noteUrbanistiche}</div>)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="doc-section border-l-4 border-l-green-500">
+                                        <div className="doc-title text-green-800"><span>🗺️ Dati da Visure</span></div>
+                                        <div className="space-y-4">
+                                            <div className="pt-2">
+                                                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Dati Catastali Attuali (per Unità)</p>
+                                                
+                                                {/* ITERAZIONE SULLE VISURE ANALIZZATE */}
+                                                {(dati.visureAnalizzate || []).map((visura, vIdx) => (
+                                                    <div key={vIdx} className="visura-container">
+                                                        <div className={`vertical-band band-color-${vIdx % 4}`}>
+                                                            <span>UNITÀ {vIdx + 1}</span>
+                                                        </div>
+                                                        <div className="visura-content">
+                                                            <div className="bg-green-50 p-3 rounded-lg border border-green-100 space-y-3 mb-3">
+                                                                {visura.datiAttuali?.map((imm, idx) => (
+                                                                    <div key={idx} className="mb-2 border-b border-green-200 pb-2 last:border-0">
+                                                                        <div><span className="highlight-unit-visura text-sm">{imm.tipologia}</span><span className="ml-2 text-sm font-semibold text-gray-800">{imm.coordinate}</span></div>
+                                                                        <div className="text-sm text-gray-700 mt-1">{imm.indirizzo}</div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div className="mb-2"><label className="field-label">Intestatari</label><div className="field-value text-sm font-bold">{visura.intestatari || '-'}</div></div>
+                                                            <div className="mb-2"><label className="field-label">Ultima Variazione</label><div className="field-value text-sm">{visura.ultimaVariazione || '-'}</div></div>
+                                                            
+                                                            {/* SEZIONE VARIAZIONI STORICHE SE PRESENTI */}
+                                                            {visura.variazioniStoriche && visura.variazioniStoriche.length > 0 && (
+                                                                <div className="mt-3 bg-red-50 border border-red-200 rounded p-2">
+                                                                    <p className="text-xs font-bold text-red-800 uppercase mb-2 flex items-center gap-1">📜 Variazioni Intervenute post-Atto</p>
+                                                                    <ul className="list-none space-y-2">
+                                                                        {visura.variazioniStoriche.map((v, i) => (
+                                                                            <li key={i} className="text-xs text-gray-700 bg-white p-1 rounded border border-red-100">
+                                                                                <span className="font-bold text-red-600 block">{v.data}</span>
+                                                                                {v.descrizione}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-lg border p-8 text-center border-t-4 border-t-purple-500">
+                                    <h3 className="text-2xl font-bold mb-6 text-gray-800 border-b pb-4">Risultato Analisi per Immobile</h3>
+                                    {dati.analisi.dettaglioEsiti?.map((esito, idx) => (
+                                        <div key={idx} className={`border rounded-lg p-5 text-left shadow-sm mb-4 ${esito.status === 'CONFORME' ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
+                                            <div className="flex items-start gap-4">
+                                                <span className="text-3xl">{esito.status === 'CONFORME' ? '✅' : '⚠️'}</span>
+                                                <div className="w-full">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <h4 className={`text-lg font-bold ${esito.status === 'CONFORME' ? 'text-green-800' : 'text-orange-800'}`}>{esito.identificativo}</h4>
+                                                        <span className={`text-xs px-2 py-1 rounded font-bold uppercase ${esito.status === 'CONFORME' ? 'bg-green-200 text-green-800' : 'bg-orange-200 text-orange-800'}`}>{esito.status}</span>
+                                                    </div>
+                                                    <p className="text-gray-700 font-medium mb-2">{esito.messaggio}</p>
+                                                    
+                                                    {/* MODIFICA 5: Mostrare azioni anche se CONFORME (es. variazioni interne) */}
+                                                    {esito.azioni?.length > 0 && (
+                                                        <div className="mt-3 bg-white p-3 rounded border border-gray-200">
+                                                            <p className="text-xs font-bold text-gray-500 uppercase mb-1">Variazioni / Note Tecniche:</p>
+                                                            <ul className="list-disc pl-4">
+                                                                {esito.azioni.map((azione, i) => <li key={i} className="text-sm text-gray-700 font-medium">{azione}</li>)}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="mt-8 pt-6 border-t"><button onClick={() => { setFase('upload'); setFiles({ atto: null, visure: [] }); setDati(null); }} className="px-8 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 shadow-lg">🔄 Nuova Analisi</button></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // ============================================================
+        // APP PRINCIPALE
+        // ============================================================
+        function App() {
+            const VERSION = "8.1.0 - Logic Fixes";
+            const [pratiche, setPratiche] = useState([]);
+            const [utenti, setUtenti] = useState(UTENTI_INIZIALI);
+            const [schermata, setSchermata] = useState('analisi');
+            const [utenteCorrente, setUtenteCorrente] = useState(null);
+            
+            // STATI LOGIN
+            const [usernameInserito, setUsernameInserito] = useState('');
+            const [passwordInserita, setPasswordInserita] = useState('');
+            const [erroreLogin, setErroreLogin] = useState('');
+
+            // STATI DASHBOARD
+            const [filtro, setFiltro] = useState('tutte');
+            const [cercaTesto, setCercaTesto] = useState('');
+            const [vistaStatistiche, setVistaStatistiche] = useState(false);
+            const [vistaPratiche, setVistaPratiche] = useState(false); 
+            const [periodoStats, setPeriodoStats] = useState('settimana');
+            
+            // FIREBASE SYNC
+            const [firebaseConnesso, setFirebaseConnesso] = useState(false);
+            
+            // STATI MODALI & GESTIONE
+            const [mostraModal, setMostraModal] = useState(null);
+            const [praticaSelezionata, setPraticaSelezionata] = useState(null);
+            const [motivoSospensione, setMotivoSospensione] = useState('');
+            const [noteSopralluogo, setNoteSopralluogo] = useState('');
+            const [utenteRiassegnazione, setUtenteRiassegnazione] = useState(null);
+
+            useEffect(() => {
+                if (!firebaseInitialized || !db) {
+                    const saved = localStorage.getItem('pratiche_effetre');
+                    if (saved) setPratiche(JSON.parse(saved));
+                    return;
+                }
+                const unsubscribe = db.collection('pratiche').doc('data').onSnapshot((doc) => {
+                    if (doc.exists) {
+                        setPratiche(doc.data().pratiche || []);
+                        setFirebaseConnesso(true);
+                    }
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const salvasuFirebase = async (nuovePratiche) => {
+                if (firebaseInitialized && db) {
+                    try {
+                        await db.collection('pratiche').doc('data').set({ pratiche: nuovePratiche, ultimoAggiornamento: firebase.firestore.FieldValue.serverTimestamp() });
+                        setFirebaseConnesso(true);
+                    } catch (e) { console.error(e); }
+                } else {
+                    localStorage.setItem('pratiche_effetre', JSON.stringify(nuovePratiche));
+                }
+                setPratiche(nuovePratiche);
+            };
+
+            const handleLogin = () => {
+                const utente = utenti.find(u => u.username === usernameInserito && u.password === passwordInserita);
+                if (utente) {
+                    setUtenteCorrente(utente);
+                    setSchermata('app');
+                    setUsernameInserito(''); setPasswordInserita(''); setErroreLogin('');
+                } else {
+                    setErroreLogin('Credenziali errate');
+                }
+            };
+
+            const calcolaStatistiche = () => {
+                return {
+                    statsPerUtente: utenti.map(u => ({ utente: u.nome, completate: 0, inLavorazione: 0, sospese: 0 })),
+                    totaliPeriodo: { totale: pratiche.length, completate: pratiche.filter(p => p.stato === 'completata').length },
+                    distribuzioneStati: { inLavorazione: 0, sospese: 0 }
+                };
+            };
+
+            // FUNZIONI GESTIONE PRATICHE (REINSERITE)
+            const prendiInCarico = (id) => {
+                const pratica = pratiche.find(p => p.id === id);
+                if (pratica.stato === 'eliminata') return alert('Pratica eliminata!');
+                setPraticaSelezionata(pratica);
+                setMostraModal('conferma-presa-in-carico');
+            };
+
+            const confermaPrendInCarico = (sopralluogoEffettuato) => {
+                const nuovePratiche = pratiche.map(p => p.id === praticaSelezionata.id ? { ...p, stato: 'in-lavorazione', utenteAssegnato: utenteCorrente, prelavorata: !sopralluogoEffettuato, storico: [...p.storico, { data: new Date().toLocaleString(), utente: utenteCorrente.nome, azione: 'Presa in carico' }] } : p);
+                salvasuFirebase(nuovePratiche);
+                setMostraModal(null); setPraticaSelezionata(null);
+            };
+
+            const completaPratica = (id) => {
+                const nuovePratiche = pratiche.map(p => p.id === id ? { ...p, stato: 'completata', prelavorata: false, storico: [...p.storico, { data: new Date().toLocaleString(), utente: utenteCorrente.nome, azione: 'Completata' }] } : p);
+                salvasuFirebase(nuovePratiche);
+            };
+
+            const sospendiPratica = (id) => {
+                setPraticaSelezionata(pratiche.find(p => p.id === id));
+                setMostraModal('sospendi');
+            };
+
+            const confermaSospensione = () => {
+                if(!motivoSospensione) return alert('Inserisci motivo');
+                const nuovePratiche = pratiche.map(p => p.id === praticaSelezionata.id ? { ...p, stato: 'sospesa', dataSospensione: new Date().toISOString(), storico: [...p.storico, { data: new Date().toLocaleString(), utente: utenteCorrente.nome, azione: 'Sospesa', dettagli: motivoSospensione }] } : p);
+                salvasuFirebase(nuovePratiche);
+                setMostraModal(null); setMotivoSospensione('');
+            };
+
+            const riattivaPratica = (id) => {
+                const nuovePratiche = pratiche.map(p => p.id === id ? { ...p, stato: 'in-lavorazione', dataSospensione: null, storico: [...p.storico, { data: new Date().toLocaleString(), utente: utenteCorrente.nome, azione: 'Riattivata' }] } : p);
+                salvasuFirebase(nuovePratiche);
+            };
+
+            const cambiaStatoPratica = (id, nuovoStato) => {
+                const nuovePratiche = pratiche.map(p => p.id === id ? { ...p, stato: nuovoStato } : p);
+                salvasuFirebase(nuovePratiche);
+            };
+
+            const riassegnaPratica = (id) => {
+                setPraticaSelezionata(pratiche.find(p => p.id === id));
+                setMostraModal('riassegna');
+            };
+
+            const confermaRiassegnazione = () => {
+                if (!utenteRiassegnazione) return alert('Seleziona utente');
+                const nuovePratiche = pratiche.map(p => p.id === praticaSelezionata.id ? { ...p, utenteAssegnato: utenteRiassegnazione, stato: 'in-lavorazione', storico: [...p.storico, { data: new Date().toLocaleString(), utente: utenteCorrente.nome, azione: 'Riassegnata a ' + utenteRiassegnazione.nome }] } : p);
+                salvasuFirebase(nuovePratiche);
+                setMostraModal(null); setUtenteRiassegnazione(null);
+            };
+
+            const visualizzaDettagli = (pratica) => {
+                setPraticaSelezionata(pratica);
+                setNoteSopralluogo(pratica.noteSopralluogoUtente || '');
+                setMostraModal('dettagli');
+            };
+
+            const salvaNoteSopralluogo = () => {
+                const nuovePratiche = pratiche.map(p => p.id === praticaSelezionata.id ? { ...p, noteSopralluogoUtente: noteSopralluogo, osservazioni: noteSopralluogo } : p);
+                salvasuFirebase(nuovePratiche);
+                setMostraModal(null);
+            };
+
+            // RENDER SCHERMATE
+            if (schermata === 'analisi') {
+                return <AnalisiAutomatica user={utenteCorrente} onBack={() => {}} />;
+            }
+            
+            if (schermata === 'login') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+                            <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Accedi</h2>
+                            {erroreLogin && <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-center">{erroreLogin}</div>}
+                            <input className="w-full border p-3 rounded-lg mb-4" placeholder="Username" value={usernameInserito} onChange={e => setUsernameInserito(e.target.value)} />
+                            <input className="w-full border p-3 rounded-lg mb-6" type="password" placeholder="Password" value={passwordInserita} onChange={e => setPasswordInserita(e.target.value)} />
+                            <button onClick={handleLogin} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 shadow-lg">Entra</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // APP DASHBOARD
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white shadow-lg sticky top-0 z-50">
+                        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-xl font-bold cursor-pointer" onClick={() => { setVistaStatistiche(false); setVistaPratiche(false); }}>Effetre Gestionale</h1>
+                                <span className="bg-blue-900 bg-opacity-50 text-xs px-2 py-1 rounded">v{VERSION}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="font-semibold hidden md:inline">{utenteCorrente.nome}</span>
+                                <button onClick={() => { setVistaPratiche(true); setVistaStatistiche(false); }} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded font-bold shadow-md text-sm">📋 Pratiche</button>
+                                <button onClick={() => setSchermata('analisi')} className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded font-bold shadow-md text-sm">🤖 Analisi AI</button>
+                                <button onClick={() => { setVistaStatistiche(!vistaStatistiche); setVistaPratiche(false); }} className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded font-bold shadow-md text-sm">📊 Stats</button>
+                                <button onClick={() => { setUtenteCorrente(null); setSchermata('login'); }} className="bg-white text-blue-600 px-3 py-1 rounded font-bold text-sm">Esci</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="container mx-auto px-4 py-6">
+                        {vistaStatistiche ? (
+                            <DashboardStatistiche 
+                                pratiche={pratiche} utenti={utenti} 
+                                periodoStats={periodoStats} setPeriodoStats={setPeriodoStats} 
+                                calcolaStatistiche={calcolaStatistiche} 
+                            />
+                        ) : vistaPratiche ? (
+                            // INTERFACCIA LISTA PRATICHE (RIPRISTINATA)
+                            <div className="space-y-4">
+                                <div className="bg-white p-4 rounded-lg shadow flex flex-wrap gap-4 items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">📋 Gestione Pratiche</h2>
+                                    <div className="flex gap-2">
+                                        <input className="border p-2 rounded" placeholder="Cerca..." value={cercaTesto} onChange={(e) => setCercaTesto(e.target.value)} />
+                                        <button className="bg-gray-200 px-4 py-2 rounded" onClick={() => setVistaPratiche(false)}>Chiudi</button>
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-lg shadow overflow-hidden">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left font-bold text-gray-600">Numero</th>
+                                                <th className="px-4 py-3 text-left font-bold text-gray-600">Comune</th>
+                                                <th className="px-4 py-3 text-left font-bold text-gray-600">Indirizzo</th>
+                                                <th className="px-4 py-3 text-left font-bold text-gray-600">Stato</th>
+                                                <th className="px-4 py-3 text-left font-bold text-gray-600">Azioni</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-200">
+                                            {pratiche.filter(p => p.numero.includes(cercaTesto) || p.comune.toLowerCase().includes(cercaTesto.toLowerCase())).map(p => (
+                                                <tr key={p.id} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-3 font-bold">{p.numero}</td>
+                                                    <td className="px-4 py-3">{p.comune}</td>
+                                                    <td className="px-4 py-3 text-gray-600">{p.indirizzo}</td>
+                                                    <td className="px-4 py-3"><span className={`badge badge-${p.stato}`}>{p.stato}</span></td>
+                                                    <td className="px-4 py-3 flex gap-2">
+                                                        {p.stato === 'disponibile' && <button onClick={() => prendiInCarico(p.id)} className="text-blue-600 font-bold hover:underline">Prendi</button>}
+                                                        {p.stato === 'in-lavorazione' && p.utenteAssegnato?.id === utenteCorrente.id && (
+                                                            <>
+                                                                <button onClick={() => completaPratica(p.id)} className="text-green-600 font-bold hover:underline">Fatto</button>
+                                                                <button onClick={() => sospendiPratica(p.id)} className="text-red-600 font-bold hover:underline">Sospendi</button>
+                                                            </>
+                                                        )}
+                                                        <button onClick={() => visualizzaDettagli(p)} className="text-gray-600 hover:text-black">Dettagli</button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : (
+                            // DASHBOARD CARDS
+                            <div className="bg-white rounded-lg shadow-md p-8 text-center">
+                                <h2 className="text-2xl font-bold text-gray-700 mb-4">Benvenuto nel Gestionale Unificato</h2>
+                                <p className="text-gray-500 mb-8">Seleziona un modulo per iniziare.</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                                    <div className="p-6 border-2 border-blue-100 rounded-xl bg-blue-50 cursor-pointer hover:shadow-lg transition-all" onClick={() => setVistaPratiche(true)}>
+                                        <div className="text-4xl mb-2">📋</div>
+                                        <h3 className="font-bold text-blue-900">Le Mie Pratiche</h3>
+                                        <p className="text-sm text-blue-700">{pratiche.length} pratiche totali</p>
+                                    </div>
+                                    <div className="p-6 border-2 border-purple-100 rounded-xl bg-purple-50 cursor-pointer hover:shadow-lg transition-all" onClick={() => setSchermata('analisi')}>
+                                        <div className="text-4xl mb-2">🤖</div>
+                                        <h3 className="font-bold text-purple-900">Analisi AI</h3>
+                                        <p className="text-sm text-purple-700">Analizza Atti e Visure</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* MODALI */}
+                    {mostraModal === 'conferma-presa-in-carico' && (
+                        <div className="modal-overlay" onClick={() => setMostraModal(null)}>
+                            <div className="bg-white p-6 rounded-lg max-w-sm w-full" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-xl font-bold mb-4">Conferma Presa in Carico</h3>
+                                <p className="mb-4">Il sopralluogo è già stato effettuato?</p>
+                                <div className="flex flex-col gap-2">
+                                    <button onClick={() => confermaPrendInCarico(true)} className="bg-green-600 text-white p-2 rounded font-bold">SÌ - Sopralluogo Fatto</button>
+                                    <button onClick={() => confermaPrendInCarico(false)} className="bg-orange-500 text-white p-2 rounded font-bold">NO - Prelavorazione</button>
+                                    <button onClick={() => setMostraModal(null)} className="bg-gray-300 text-gray-700 p-2 rounded">Annulla</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {mostraModal === 'dettagli' && praticaSelezionata && (
+                        <div className="modal-overlay" onClick={() => setMostraModal(null)}>
+                            <div className="bg-white p-6 rounded-lg max-w-2xl w-full" onClick={e => e.stopPropagation()}>
+                                <h3 className="text-xl font-bold mb-4">Dettagli Pratica {praticaSelezionata.numero}</h3>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div><strong>Comune:</strong> {praticaSelezionata.comune}</div>
+                                    <div><strong>Indirizzo:</strong> {praticaSelezionata.indirizzo}</div>
+                                    <div><strong>Codice:</strong> {praticaSelezionata.codice}</div>
+                                    <div><strong>Stato:</strong> {praticaSelezionata.stato}</div>
+                                </div>
+                                <textarea className="w-full border p-2 rounded mb-4" rows="4" placeholder="Note utente..." value={noteSopralluogo} onChange={(e) => setNoteSopralluogo(e.target.value)}></textarea>
+                                <div className="flex justify-end gap-2">
+                                    <button onClick={salvaNoteSopralluogo} className="bg-blue-600 text-white px-4 py-2 rounded">Salva Note</button>
+                                    <button onClick={() => setMostraModal(null)} className="bg-gray-300 px-4 py-2 rounded">Chiudi</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Altri modali (Sospensione, Riassegnazione) possono essere aggiunti qui seguendo lo stesso pattern */}
+                    
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ErrorBoundary><App /></ErrorBoundary>);
+    </script>
+</body>
+</html>
