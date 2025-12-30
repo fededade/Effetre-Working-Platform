@@ -149,6 +149,126 @@
         .band-color-2 { background-color: #8b5cf6; } /* Viola */
         .band-color-3 { background-color: #f59e0b; } /* Arancio */
         .visura-content { flex: 1; padding: 1rem; }
+        
+        /* ========== MOBILE RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            /* Header mobile */
+            .header-mobile {
+                flex-direction: column !important;
+                gap: 1rem !important;
+                padding: 1rem !important;
+            }
+            .header-mobile h2 {
+                font-size: 1.25rem !important;
+            }
+            .header-mobile img {
+                height: 40px !important;
+                width: 40px !important;
+            }
+            
+            /* Container e padding */
+            .p-6 { padding: 1rem !important; }
+            .p-8 { padding: 1.25rem !important; }
+            .px-4 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+            .max-w-6xl { padding-left: 0.5rem; padding-right: 0.5rem; }
+            
+            /* Grid upload diventa colonna */
+            .grid-cols-1.md\\:grid-cols-2 {
+                grid-template-columns: 1fr !important;
+            }
+            
+            /* Zone upload più compatte */
+            .upload-zone {
+                padding: 1.5rem 1rem !important;
+            }
+            .upload-zone .text-4xl {
+                font-size: 2rem !important;
+            }
+            .upload-zone h3 {
+                font-size: 1rem !important;
+            }
+            
+            /* Pulsante AVVIA più grande su mobile */
+            .btn-primary, .btn-secondary {
+                padding: 1rem 1.5rem !important;
+                font-size: 1rem !important;
+                width: 100% !important;
+            }
+            
+            /* Doc section */
+            .doc-section {
+                padding: 1rem !important;
+                margin-bottom: 1rem !important;
+            }
+            .doc-title {
+                font-size: 0.95rem !important;
+                flex-direction: column !important;
+                gap: 0.5rem !important;
+            }
+            
+            /* Griglia risultati */
+            .grid.grid-cols-2 {
+                grid-template-columns: 1fr !important;
+            }
+            .grid.grid-cols-3 {
+                grid-template-columns: 1fr !important;
+            }
+            .grid.grid-cols-4 {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+            
+            /* Field labels e values */
+            .field-label { font-size: 0.75rem !important; }
+            .field-value { font-size: 0.85rem !important; padding: 0.4rem !important; }
+            
+            /* Visura container */
+            .visura-container {
+                flex-direction: column !important;
+            }
+            .vertical-band {
+                width: 100% !important;
+                height: 30px !important;
+                writing-mode: horizontal-tb !important;
+            }
+            
+            /* Badge ante67 */
+            .badge-ante67 {
+                padding: 0.5rem !important;
+                font-size: 0.85rem !important;
+            }
+            
+            /* File items */
+            .file-item {
+                font-size: 0.8rem !important;
+                padding: 6px 10px !important;
+            }
+            
+            /* Gap e spacing */
+            .gap-8 { gap: 1.5rem !important; }
+            .gap-6 { gap: 1rem !important; }
+            .gap-4 { gap: 0.75rem !important; }
+            .mb-6 { margin-bottom: 1rem !important; }
+            .mb-8 { margin-bottom: 1.5rem !important; }
+            
+            /* Testo */
+            .text-3xl { font-size: 1.5rem !important; }
+            .text-2xl { font-size: 1.25rem !important; }
+            .text-xl { font-size: 1.1rem !important; }
+            
+            /* Note box */
+            .note-box {
+                font-size: 0.8rem !important;
+                padding: 8px !important;
+            }
+        }
+        
+        /* Extra small screens */
+        @media (max-width: 480px) {
+            .p-6 { padding: 0.75rem !important; }
+            .text-3xl { font-size: 1.25rem !important; }
+            .upload-zone { padding: 1rem !important; }
+            .doc-section { padding: 0.75rem !important; }
+        }
     </style>
 </head>
 <body>

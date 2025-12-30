@@ -162,6 +162,180 @@
             background-color: #ef4444;
             color: white;
         }
+        
+        /* ========== MOBILE RESPONSIVE ========== */
+        @media (max-width: 768px) {
+            /* Container e padding generali */
+            .container { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+            .p-6 { padding: 1rem !important; }
+            .p-8 { padding: 1.25rem !important; }
+            .p-4 { padding: 0.75rem !important; }
+            .px-4 { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+            .py-6 { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+            
+            /* Header sticky */
+            .header-sticky {
+                padding: 0.5rem !important;
+            }
+            .header-sticky h1 {
+                font-size: 1rem !important;
+            }
+            .header-sticky img {
+                height: 32px !important;
+            }
+            .header-sticky .gap-4 {
+                gap: 0.5rem !important;
+            }
+            
+            /* Navbar / menu buttons */
+            .header-sticky button {
+                padding: 0.4rem 0.6rem !important;
+                font-size: 0.7rem !important;
+            }
+            .header-sticky .text-sm {
+                font-size: 0.65rem !important;
+            }
+            
+            /* Grid layouts */
+            .grid-cols-2 { grid-template-columns: 1fr !important; }
+            .grid-cols-3 { grid-template-columns: 1fr !important; }
+            .grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+            .md\\:grid-cols-2 { grid-template-columns: 1fr !important; }
+            .md\\:grid-cols-3 { grid-template-columns: 1fr !important; }
+            .md\\:grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+            
+            /* Tabelle responsive */
+            table { font-size: 0.75rem !important; }
+            th, td { padding: 0.5rem 0.4rem !important; }
+            .overflow-x-auto { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            
+            /* Pratiche table - nascondi colonne meno importanti */
+            table th:nth-child(4), table td:nth-child(4) { display: none; }
+            table th:nth-child(5), table td:nth-child(5) { display: none; }
+            
+            /* Cards */
+            .rounded-lg { border-radius: 0.5rem !important; }
+            .shadow-lg { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important; }
+            
+            /* Bottoni */
+            .btn-primary, .btn-secondary {
+                padding: 1rem 1.5rem !important;
+                font-size: 0.9rem !important;
+            }
+            button { font-size: 0.8rem !important; }
+            
+            /* Badge e stati */
+            .badge { 
+                padding: 0.15rem 0.5rem !important; 
+                font-size: 0.65rem !important; 
+            }
+            .stato-select {
+                font-size: 0.65rem !important;
+                padding: 0.2rem 0.4rem !important;
+            }
+            
+            /* Modal */
+            .modal-overlay > div {
+                margin: 1rem !important;
+                max-height: 90vh !important;
+                overflow-y: auto !important;
+            }
+            
+            /* Home screen cards */
+            .home-screen .logo-container {
+                max-width: 200px !important;
+            }
+            .home-screen h1 {
+                font-size: 1.5rem !important;
+            }
+            
+            /* Dashboard cards */
+            .border-2 { border-width: 1px !important; }
+            
+            /* Filtri sticky */
+            .filtri-sticky {
+                top: 60px !important;
+                padding: 0.5rem !important;
+            }
+            .filtri-sticky select, .filtri-sticky input {
+                font-size: 0.75rem !important;
+                padding: 0.4rem !important;
+            }
+            
+            /* Gap e spacing */
+            .gap-6 { gap: 1rem !important; }
+            .gap-4 { gap: 0.75rem !important; }
+            .gap-3 { gap: 0.5rem !important; }
+            .gap-2 { gap: 0.35rem !important; }
+            .mb-6 { margin-bottom: 1rem !important; }
+            .mb-4 { margin-bottom: 0.75rem !important; }
+            .space-y-4 > * + * { margin-top: 0.75rem !important; }
+            
+            /* Testo */
+            .text-3xl { font-size: 1.5rem !important; }
+            .text-2xl { font-size: 1.25rem !important; }
+            .text-xl { font-size: 1rem !important; }
+            .text-lg { font-size: 0.9rem !important; }
+            
+            /* Flex wrap su mobile */
+            .flex-wrap { flex-wrap: wrap !important; }
+            .flex.gap-4 { gap: 0.5rem !important; }
+            
+            /* Upload zone */
+            .upload-zone, .upload-zone-kml {
+                padding: 1.5rem 1rem !important;
+            }
+            
+            /* Input e form */
+            input[type="text"], input[type="password"], input[type="email"], select, textarea {
+                font-size: 16px !important; /* Previene zoom su iOS */
+            }
+            
+            /* Firebase status badge */
+            .firebase-status {
+                bottom: 10px !important;
+                right: 10px !important;
+                padding: 4px 8px !important;
+                font-size: 10px !important;
+            }
+            
+            /* Reminder badge più piccolo */
+            .reminder-badge {
+                font-size: 0.6rem !important;
+                padding: 0.1rem 0.3rem !important;
+            }
+            
+            /* Notification badge */
+            .notification-badge {
+                width: 18px !important;
+                height: 18px !important;
+                font-size: 10px !important;
+            }
+        }
+        
+        /* Extra small screens (< 480px) */
+        @media (max-width: 480px) {
+            .container { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+            .p-6 { padding: 0.75rem !important; }
+            .text-2xl { font-size: 1.1rem !important; }
+            .text-xl { font-size: 0.95rem !important; }
+            table { font-size: 0.7rem !important; }
+            th, td { padding: 0.35rem 0.25rem !important; }
+            
+            /* Nascondi ancora più colonne su schermi molto piccoli */
+            table th:nth-child(3), table td:nth-child(3) { display: none; }
+            
+            .header-sticky button {
+                padding: 0.3rem 0.5rem !important;
+                font-size: 0.6rem !important;
+            }
+        }
+        
+        /* Forza scroll orizzontale per tabelle */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
     </style>
 </head>
 <body>
