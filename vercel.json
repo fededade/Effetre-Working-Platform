@@ -1,7 +1,7 @@
 {
-  "rewrites": [
-    { "source": "/", "destination": "/public/index.html" },
-    { "source": "/analisi.html", "destination": "/public/analisi.html" },
-    { "source": "/analisi", "destination": "/public/analisi.html" }
-  ]
+  "functions": {
+    "api/gemini.js": {
+      "runtime": "@vercel/node@3"
+    }
+  }
 }
