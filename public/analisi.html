@@ -334,10 +334,13 @@
 
         // Modifica: Aggiunta logica di RETRY automatico per errore 429 (Resource Exhausted)
         const interrogaGemini = async (model, fileAtto, filesVisura, updateStatus) => {
-            // Usa il proxy server invece di chiamare direttamente Gemini
-            const url = '/api/gemini';
+            // FIX: Usiamo direttamente l'API di Google invece del proxy locale '/api/gemini'
+            // Nota: Usiamo la stessa API Key di Firebase (firebaseConfig.apiKey). 
+            // Se non dovesse funzionare, generare una Key specifica su Google AI Studio.
+            const API_KEY = firebaseConfig.apiKey; 
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
             
-            // Preparazione payload (pesante, ma necessaria)
+            // Preparazione payload
             if (updateStatus) updateStatus('Conversione documenti in corso...');
             const base64Atto = await fileToBase64(fileAtto);
             const visureBase64Promises = filesVisura.map(file => fileToBase64(file));
@@ -353,63 +356,47 @@
             OBIETTIVO: Analizza l'atto e confrontalo con le visure catastali.
 
             ISTRUZIONI SPECIALI PER VISURE E UNITA':
-            1. **UNIONE UNITA'**: Se in una visura i dati appaiono "spacchettati" su più righe ma si riferiscono alla stessa unità funzionale (es. subalterno 503 graffato al 504, o abitazione + cantina elencate in sequenza ma parte della stessa proprietà), DEVI UNIRLI in un unico oggetto "immobile" logico. NON creare voci separate se sono la stessa unità.
+            1. **UNIONE UNITA'**: Se in una visura i dati appaiono "spacchettati" su più righe ma si riferiscono alla stessa unità funzionale (es. subalterno 503 graffato al 504), UNISCILI.
             
             2. **FILTRO VARIAZIONI STORICHE**: 
-               Nel campo "variazioniStoriche", devi riportare le variazioni intervenute DOPO la data dell'atto, MA con un filtro preciso:
-               - **RIPORTA TASSATIVAMENTE** le variazioni di natura TECNICA/URBANISTICA/EDILIZIA, quali: "Diversa distribuzione spazi interni", "Ampliamento", "Divisione", "Frazionamento", "Fusione", "Demolizione parziale/totale", "Sopraelevazione", "Ristrutturazione", "Variazione toponomastica", "Cambio destinazione d'uso", "Esatta rappresentazione grafica". Queste DEVONO essere segnalate.
-               - **NON RIPORTARE (IGNORA)** le variazioni puramente AMMINISTRATIVE o di TITOLARITÀ, quali: "Compravendita", "Successione", "Denuncia nei passaggi per causa di morte", "Ricongiungimento di usufrutto", "Voltura", "Rettifica intestazione all'attualità". Queste non costituiscono alterazione urbanistica.
+               Nel campo "variazioniStoriche", riporta le variazioni intervenute DOPO la data dell'atto.
+               - **RIPORTA**: Variazioni TECNICHE (Diversa distribuzione, Ampliamento, Frazionamento, Fusione, Ristrutturazione, Cambio uso).
+               - **IGNORA**: Variazioni AMMINISTRATIVE (Compravendita, Successione, Voltura).
 
-            3. **AZIONI RICHIESTE E CONFORMITA' (CRUCIALE)**:
-               - **REGOLA AUREA CONFORMITA'**: Se i dati identificativi catastali (Foglio, Particella/Mappale, Subalterno) citati nell'atto COINCIDONO con quelli presenti in visura, l'esito base è "CONFORME", anche se successivamente ci sono state ristrutturazioni (es. diversa distribuzione interna).
-               - **VARIAZIONI**: Se ci sono variazioni tecniche post-atto (es. diversa distribuzione), ELENCALE nel campo "azioni" come promemoria, ma NON usare lo stato "NON CONFORME" se l'unità è correttamente identificata.
-               - Usa "NON CONFORME" solo se: i dati identificativi non corrispondono, l'unità è stata soppressa/fusa (quindi non esiste più con quel subalterno), o se c'è un errore palese nei titolari.
-               - Nel campo "azioni", NON scrivere consigli generici. Riporta SOLO le variazioni tecniche post-atto (es. "Variazione del 10/10/2023: Diversa distribuzione spazi interni...").
+            3. **AZIONI RICHIESTE E CONFORMITA'**:
+               - Se i dati identificativi (Foglio, Particella, Sub) coincidono: esito "CONFORME".
+               - Segnala le variazioni tecniche post-atto nel campo "azioni".
+               - Usa "NON CONFORME" solo se i dati identificativi sono diversi o l'unità è soppressa.
 
-            4. **TITOLI EDILIZI (URBANISTICA)**:
-               - Estrai **TUTTI** i titoli edilizi menzionati (CILA, SCIA, DIA, Licenza, Concessione, Condono) inserendoli UNO AD UNO nell'array "elencoTitoli".
-               - **IMPORTANTE**: NON inserire mai "Atto di provenienza" o "Rogito" nella lista dei titoli edilizi. L'atto di provenienza non è un titolo edilizio.
-               - Ordina i titoli per data.
+            4. **TITOLI EDILIZI**:
+               - Estrai CILA, SCIA, DIA, Licenza, Concessione, Condono.
+               - NON inserire l'Atto di provenienza come titolo edilizio.
 
-            5. **LIMITE DI LETTURA**: L'analisi dell'Atto DEVE FERMARSI alla chiusura dell'atto (firme). IGNORA planimetrie allegate, APE e note di trascrizione finali.
+            5. **LIMITE**: Ignora planimetrie e APE.
 
-            Estrai i dati seguendo rigorosamente questa struttura JSON:
+            Output rigorosamente in JSON:
             {
                 "atto": {
                     "tipo": "String", "data": "GG/MM/AAAA", "repertorio": "String",
                     "notaio": "String", "prezzo": "String",
-                    "unitaImmobiliari": [
-                        { "tipologia": "String", "coordinate": "String", "dettagli": "String", "descrizione": "String (Riporta il testo descrittivo completo per dare rilevanza)" }
-                    ],
-                    "noteCatastali": "String",
-                    "ante67": "Boolean",
-                    "elencoTitoli": [
-                        { "tipo": "String", "dettagli": "String" }
-                    ],
-                    "noteUrbanistiche": "String (NON includere l'atto di provenienza qui)",
-                    "convenzioni": "String"
+                    "unitaImmobiliari": [ { "tipologia": "String", "coordinate": "String", "dettagli": "String", "descrizione": "String" } ],
+                    "noteCatastali": "String", "ante67": "Boolean",
+                    "elencoTitoli": [ { "tipo": "String", "dettagli": "String" } ],
+                    "noteUrbanistiche": "String", "convenzioni": "String"
                 },
                 "visureAnalizzate": [
                     {
-                        "titolo": "String (es. 'Unità 1')",
-                        "datiAttuali": [
-                            { "tipologia": "String", "coordinate": "String", "indirizzo": "String", "dettagli": "String" }
-                        ],
-                        "intestatari": "String", 
-                        "ultimaVariazione": "String",
-                        "corrispondenzaAtto": "Boolean",
-                        "variazioniStoriche": [
-                            { "data": "String", "descrizione": "String (Copia fedele dalla visura)" }
-                        ]
+                        "titolo": "String",
+                        "datiAttuali": [ { "tipologia": "String", "coordinate": "String", "indirizzo": "String", "dettagli": "String" } ],
+                        "intestatari": "String", "ultimaVariazione": "String", "corrispondenzaAtto": "Boolean",
+                        "variazioniStoriche": [ { "data": "String", "descrizione": "String" } ]
                     }
                 ],
                 "analisi": {
                     "dettaglioEsiti": [
                         {
-                            "identificativo": "String",
-                            "status": "String (CONFORME, NON CONFORME, ATTENZIONE)",
-                            "messaggio": "String (Se Identificativi corrispondono, scrivi 'Dati identificativi conformi')",
-                            "azioni": [ "String (Elenco delle sole variazioni tecniche successive all'atto)" ]
+                            "identificativo": "String", "status": "String", "messaggio": "String",
+                            "azioni": [ "String" ]
                         }
                     ]
                 }
@@ -421,22 +408,21 @@
             parts.push({ inlineData: { mimeType: fileAtto.type, data: base64Atto } });
 
             visureBase64.forEach((b64, index) => {
-                parts.push({ text: `DOCUMENTO VISURA ${index + 1} (Consideralo come possibile Unità ${index + 1})` });
+                parts.push({ text: `DOCUMENTO VISURA ${index + 1} (Possibile Unità ${index + 1})` });
                 parts.push({ inlineData: { mimeType: filesVisura[index].type, data: b64 } });
             });
 
+            // FIX: Rimosso 'model' dal corpo della richiesta (va solo nell'URL)
             const payload = { 
-                model: model,
                 contents: [{ parts: parts }] 
             };
 
-            // LOGICA DI RETRY CON EXPONENTIAL BACKOFF
             const maxRetries = 3;
             let attempt = 0;
             
             while (attempt < maxRetries) {
                 try {
-                    if (updateStatus) updateStatus(attempt > 0 ? `Tentativo ${attempt + 1} di ${maxRetries}... (Server occupati)` : 'Analisi AI in corso...');
+                    if (updateStatus) updateStatus(attempt > 0 ? `Tentativo ${attempt + 1} di ${maxRetries}...` : 'Analisi AI in corso (Google Cloud)...');
                     
                     const response = await fetch(url, {
                         method: 'POST',
@@ -446,21 +432,14 @@
 
                     if (!response.ok) {
                         const errorData = await response.json().catch(() => ({}));
-                        
-                        // Se l'errore è 429 (Too Many Requests) o 503 (Service Unavailable)
                         if (response.status === 429 || response.status === 503) {
-                            console.warn(`Errore ${response.status}: Resource exhausted. Riprovo...`);
                             attempt++;
-                            if (attempt < maxRetries) {
-                                // Attendi: 2s, 4s, 8s
-                                const delay = Math.pow(2, attempt) * 1000; 
-                                if (updateStatus) updateStatus(`⚠️ Server AI occupati. Riprovo tra ${delay/1000} secondi...`);
-                                await sleep(delay);
-                                continue; // Riprova il ciclo
-                            }
+                            const delay = Math.pow(2, attempt) * 1000; 
+                            if (updateStatus) updateStatus(`⚠️ Server occupati. Riprovo tra ${delay/1000}s...`);
+                            await sleep(delay);
+                            continue;
                         }
-                        
-                        throw new Error(`Errore API (${response.status}): ${errorData.message || errorData.error || response.statusText}`);
+                        throw new Error(`Errore API (${response.status}): ${errorData.error?.message || response.statusText}`);
                     }
                     
                     const data = await response.json();
@@ -474,12 +453,10 @@
                     return JSON.parse(textResponse);
 
                 } catch (error) {
-                    // Se abbiamo finito i tentativi o è un errore diverso da 429/503
-                    if (attempt >= maxRetries || !error.message.includes('429') && !error.message.includes('503')) {
-                        console.error("Errore analisi Gemini finale:", error);
+                    if (attempt >= maxRetries || (!error.message.includes('429') && !error.message.includes('503'))) {
+                        console.error("Errore analisi:", error);
                         throw error;
                     }
-                    // Altrimenti il ciclo while continua se abbiamo tentativi
                 }
             }
         };
