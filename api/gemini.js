@@ -49,8 +49,7 @@ export default async function handler(req, res) {
                 contents: contents,
                 generationConfig: {
                     temperature: 0.1,
-                    maxOutputTokens: 8192,
-                    // FORZA RISPOSTA IN JSON
+                    maxOutputTokens: 16384,
                     responseMimeType: "application/json"
                 }
             })
