@@ -376,7 +376,7 @@
             Estrai i dati seguendo rigorosamente questa struttura JSON:
             {
                 "atto": {
-                    "tipo": "String", "data": "GG/MM/AAAA", "repertorio": "String",
+                    "tipo": "String", "data": "GG/MM/AAAA", "repertorio": "String", "raccolta": "String",
                     "notaio": "String", "prezzo": "String",
                     "unitaImmobiliari": [
                         { "tipologia": "String", "coordinate": "String", "dettagli": "String", "descrizione": "String (Riporta il testo descrittivo completo per dare rilevanza)" }
@@ -794,8 +794,9 @@
                                                 <div><label className="field-label">Tipo Atto</label><div className="field-value font-bold">{dati.atto.tipo || '-'}</div></div>
                                                 <div><label className="field-label">Data</label><div className="field-value">{dati.atto.data || '-'}</div></div>
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2">
+                                            <div className="grid grid-cols-4 gap-2">
                                                 <div><label className="field-label">Repertorio</label><div className="field-value text-sm">{dati.atto.repertorio || '-'}</div></div>
+                                                <div><label className="field-label">Raccolta</label><div className="field-value text-sm">{dati.atto.raccolta || '-'}</div></div>
                                                 {/* MODIFICA 1: Rimossa formattazione rossa/grassetto da Notaio e Prezzo */}
                                                 <div><label className="field-label">Notaio</label><div className="field-value">{dati.atto.notaio || '-'}</div></div>
                                                 <div><label className="field-label">Prezzo</label><div className="field-value">{dati.atto.prezzo || '-'}</div></div>
