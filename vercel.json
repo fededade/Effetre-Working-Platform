@@ -19,11 +19,5 @@
       "src": "/(.*)",
       "dest": "/public/$1"
     }
-  ],
-  "functions": {
-    "api/gemini.js": {
-      "maxDuration": 60,
-      "memory": 1024
-    }
-  }
+  ]
 }
