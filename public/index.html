@@ -6265,38 +6265,23 @@
                                         placeholder="Aggiungi note sul sopralluogo..."
                                         value={noteSopralluogo}
                                         onChange={(e) => setNoteSopralluogo(e.target.value)}
-                                        disabled={
-                                            // Editabile solo se:
-                                            // - L'utente è assegnato alla pratica
-                                            // - O l'utente è admin/super-admin
-                                            !(praticaSelezionata.utenteAssegnato?.id === utenteCorrente.id || utenteCorrente.isAdmin)
-                                        }
                                     />
-                                    {!(praticaSelezionata.utenteAssegnato?.id === utenteCorrente.id || utenteCorrente.isAdmin) && (
-                                        <p className="text-sm text-gray-500 mt-1">
-                                            ℹ️ Solo chi ha la pratica in carico o gli amministratori possono modificare le note
-                                        </p>
-                                    )}
                                 </div>
 
                                 <div className="flex gap-3">
-                                    {(praticaSelezionata.utenteAssegnato?.id === utenteCorrente.id || utenteCorrente.isAdmin) && (
-                                        <>
-                                            <button
-                                                onClick={salvaNoteSopralluogo}
-                                                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                                            >
-                                                💾 Salva Note
-                                            </button>
-                                            {noteSopralluogo && (
-                                                <button
-                                                    onClick={cancellaNoteSopralluogo}
-                                                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-                                                >
-                                                    🗑️ Cancella
-                                                </button>
-                                            )}
-                                        </>
+                                    <button
+                                        onClick={salvaNoteSopralluogo}
+                                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                                    >
+                                        💾 Salva Note
+                                    </button>
+                                    {noteSopralluogo && (
+                                        <button
+                                            onClick={cancellaNoteSopralluogo}
+                                            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                                        >
+                                            🗑️ Cancella
+                                        </button>
                                     )}
                                     <button
                                         onClick={() => setMostraModal(null)}
