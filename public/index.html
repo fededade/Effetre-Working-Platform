@@ -3490,6 +3490,22 @@
                                     🔐 ACCEDI AL SISTEMA
                                 </button>
                                 
+                                {/* Pulsante Autovaluation - Perizia Automatizzata */}
+                                <button 
+                                    onClick={() => window.open('https://copy-of-autovalue-immobiliare-996508888052.us-west1.run.app/', '_blank')}
+                                    className="btn-primary"
+                                    title="Apri Perizia Automatizzata"
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '0.25rem'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '1.125rem' }}>🏡 AUTOVALUATION</span>
+                                    <span style={{ fontSize: '0.875rem', fontWeight: 'normal', opacity: '0.8' }}>Perizia Automatizzata</span>
+                                </button>
+                                
                                 {/* Analisi Automatica Documenti - SOLO SUPER ADMIN */}
                                 <button 
                                     onClick={() => {
@@ -5276,21 +5292,13 @@
                                         <div className="text-sm text-blue-100">{utenteCorrente.ruolo}</div>
                                     </div>
                                     
-                                    {/* Pulsante Autovaluation - PER TUTTI */}
+                                    {/* Pulsante Analisi Documentale - PER TUTTI */}
                                     <button 
-                                        onClick={() => window.open('https://copy-of-autovalue-immobiliare-996508888052.us-west1.run.app/', '_blank')}
-                                        className="btn-primary text-sm px-4 py-2"
-                                        title="Apri Perizia Automatizzata"
-                                        style={{
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: '0.25rem',
-                                            padding: '1rem 2rem'
-                                        }}
+                                        onClick={() => window.open('analisi.html', '_blank')}
+                                        className="bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-600 transition-colors text-sm flex items-center gap-2"
+                                        title="Apri Analisi Documentale"
                                     >
-                                        <span style={{ fontSize: '1rem', fontWeight: 'bold' }}>🏡 Autovaluation</span>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 'normal', opacity: '0.8' }}>Perizia Automatizzata</span>
+                                        📄 Analisi Documentale
                                     </button>
                                     
                                     {/* Pulsante Inserisci Pratica - SOLO ADMIN/SUPERADMIN */}
