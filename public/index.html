@@ -227,6 +227,10 @@
         .plan-canvas-area {
             flex: 1; display: flex; flex-direction: column; overflow: hidden;
         }
+        .plan-canvas-area canvas {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
         .plan-toast {
             flex-shrink: 0; display: flex; justify-content: center;
             padding: 0.75rem; background: rgba(15,23,42,0.5);
@@ -1072,7 +1076,7 @@
                         const pages = [];
                         for (let i = 1; i <= pdf.numPages; i++) {
                             const page = await pdf.getPage(i);
-                            const viewport = page.getViewport({ scale: 2.0 });
+                            const viewport = page.getViewport({ scale: 4.0 });
                             const offCanvas = document.createElement('canvas');
                             offCanvas.width = viewport.width;
                             offCanvas.height = viewport.height;
