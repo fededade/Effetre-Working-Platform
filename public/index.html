@@ -25,6 +25,7 @@
             pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
         .pratica-disponibile { background-color: #e0f2fe; }
@@ -1333,13 +1334,21 @@
             // ============ DOWNLOAD ============
 
             const handleDownload = () => {
-                const canvas = canvasRef.current;
-                if (!canvas) return;
-                const link = document.createElement('a');
-                link.download = (uploadedFile?.name || 'planimetria').replace(/\.[^.]+$/, '') + '_superfici.png';
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-            };
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const { jsPDF } = window.jspdf;
+    const imgData = canvas.toDataURL('image/png');
+    const ratio = canvas.width / canvas.height;
+    let pdfW, pdfH;
+    if (ratio >= 1) {
+        pdfW = 297; pdfH = 297 / ratio; // landscape A4
+    } else {
+        pdfH = 297; pdfW = 297 * ratio;
+    }
+    const doc = new jsPDF({ orientation: ratio >= 1 ? 'landscape' : 'portrait', unit: 'mm', format: [pdfW, pdfH] });
+    doc.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+    doc.save((uploadedFile?.name || 'planimetria').replace(/\.[^.]+$/, '') + '_superfici.pdf');
+};
 
             // ============ PAGE CHANGE (PDF) ============
 
