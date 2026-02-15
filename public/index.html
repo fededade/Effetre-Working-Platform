@@ -1015,30 +1015,51 @@
         // ============================================================
         // COMPONENTE MISURA SUPERFICI PLANIMETRIA
         // ============================================================
+        // ============================================================
+        // COMPONENTE MISURA SUPERFICI PLANIMETRIA
+        // ============================================================
         function PlanimetryToolScreen({ onBack, LOGO_BASE64 }) {
             const { useState, useRef, useEffect, useCallback } = React;
 
             // --- State: file & image ---
-            const [uploadedFile, setUploadedFile] = useState(null);     // { name, type, dataUrl }
-            const [pdfPages, setPdfPages] = useState([]);               // array of base64 PNG per page
+            const [uploadedFile, setUploadedFile] = useState(null);
+            const [pdfPages, setPdfPages] = useState([]);         // array of base64 per page
             const [currentPage, setCurrentPage] = useState(0);
             const [img, setImg] = useState(null);
 
-            // --- State: canvas/drawing ---
-            const canvasRef = useRef(null);
-            const containerRef = useRef(null);
-            const [shapes, setShapes] = useState([]);
+            // --- State: per-page shapes & scale ---
+            const [shapesPerPage, setShapesPerPage] = useState({});  // { pageIndex: [shapes] }
+            const [scalePerPage, setScalePerPage] = useState({});    // { pageIndex: pxPerMeter }
             const [currentPoints, setCurrentPoints] = useState([]);
-            const [currentTool, setCurrentTool] = useState(null);       // 'scale'|'residential'|...|'pan'|null
-            const [scale, setScale] = useState(null);                   // px per meter
+            const [currentTool, setCurrentTool] = useState(null);
             const [tempScalePoints, setTempScalePoints] = useState([]);
             const [showCalibrationModal, setShowCalibrationModal] = useState(false);
             const [calibrationLength, setCalibrationLength] = useState('10');
+
+            // --- State: canvas / zoom / pan ---
+            const canvasRef = useRef(null);
+            const containerRef = useRef(null);
             const [currentZoom, setCurrentZoom] = useState(1.0);
             const [isPanning, setIsPanning] = useState(false);
             const [panStart, setPanStart] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
             const [mousePos, setMousePos] = useState(null);
             const [isLoading, setIsLoading] = useState(false);
+            const [isExporting, setIsExporting] = useState(false);
+
+            // --- State: vertex dragging ---
+            const [draggingVertex, setDraggingVertex] = useState(null); // { shapeIdx, pointIdx }
+
+            // --- Derived: current page shapes & scale ---
+            const shapes = shapesPerPage[currentPage] || [];
+            const scale = scalePerPage[currentPage] || null;
+
+            const setShapes = (newVal) => {
+                const val = typeof newVal === 'function' ? newVal(shapes) : newVal;
+                setShapesPerPage(prev => ({ ...prev, [currentPage]: val }));
+            };
+            const setScaleVal = (val) => {
+                setScalePerPage(prev => ({ ...prev, [currentPage]: val }));
+            };
 
             const colors = {
                 residential: { fill: 'rgba(239, 68, 68, 0.3)', stroke: '#ef4444' },
@@ -1057,12 +1078,16 @@
                 { id: 'accessories', icon: '📦', label: 'Accessori',       colorLabel: '#a855f7', colorBg: 'rgba(168,85,247,0.15)',  colorBorder: 'rgba(168,85,247,0.3)' }
             ];
 
+            const VERTEX_HIT_RADIUS = 12; // pixels tolerance for vertex grab
+
             // ============ PDF / IMAGE LOADING ============
 
             const handleFileUpload = async (file) => {
                 if (!file) return;
                 setIsLoading(true);
-                setShapes([]); setCurrentPoints([]); setScale(null); setCurrentPage(0); setPdfPages([]);
+                setShapesPerPage({}); setScalePerPage({});
+                setCurrentPoints([]); setCurrentPage(0); setPdfPages([]);
+                setDraggingVertex(null);
 
                 if (file.type === 'application/pdf') {
                     try {
@@ -1081,7 +1106,7 @@
                             offCanvas.width = viewport.width;
                             offCanvas.height = viewport.height;
                             const ctx = offCanvas.getContext('2d');
-                            await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                            await page.render({ canvasContext: ctx, viewport }).promise;
                             pages.push(offCanvas.toDataURL('image/png'));
                         }
                         setPdfPages(pages);
@@ -1091,7 +1116,6 @@
                         alert('Errore durante il caricamento del PDF. Riprova.');
                     }
                 } else {
-                    // Image file
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         setUploadedFile({ name: file.name, type: file.type, dataUrl: e.target.result });
@@ -1101,27 +1125,15 @@
                 setIsLoading(false);
             };
 
-            const onDrop = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const file = e.dataTransfer.files[0];
-                if (file) handleFileUpload(file);
-            };
-
-            const onDragOver = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-            };
+            const onDrop = (e) => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) handleFileUpload(f); };
+            const onDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
 
             // ============ LOAD IMAGE INTO CANVAS ============
 
             useEffect(() => {
                 let src = null;
-                if (pdfPages.length > 0) {
-                    src = pdfPages[currentPage];
-                } else if (uploadedFile && uploadedFile.dataUrl) {
-                    src = uploadedFile.dataUrl;
-                }
+                if (pdfPages.length > 0) src = pdfPages[currentPage];
+                else if (uploadedFile && uploadedFile.dataUrl) src = uploadedFile.dataUrl;
                 if (!src) { setImg(null); return; }
 
                 const image = new Image();
@@ -1131,13 +1143,71 @@
                         canvasRef.current.width = image.width;
                         canvasRef.current.height = image.height;
                     }
-                    // Fit to screen after a short delay
                     setTimeout(() => fitToScreen(), 100);
                 };
                 image.src = src;
             }, [uploadedFile, pdfPages, currentPage]);
 
+            // ============ AREA CALCULATION ============
+
+            const calculatePolygonArea = (points, scaleVal) => {
+                if (!scaleVal) return 0;
+                let area = 0;
+                let j = points.length - 1;
+                for (let i = 0; i < points.length; i++) {
+                    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
+                    j = i;
+                }
+                return Math.abs(area / 2) / (scaleVal * scaleVal);
+            };
+
             // ============ DRAW CANVAS ============
+
+            const drawShapesOnCtx = (ctx, shapesToDraw, scaleVal, drawVertices) => {
+                shapesToDraw.forEach((shape, sIdx) => {
+                    const style = colors[shape.type];
+                    if (!style) return;
+                    ctx.fillStyle = style.fill;
+                    ctx.strokeStyle = style.stroke;
+                    ctx.lineWidth = 3;
+
+                    ctx.beginPath();
+                    ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                    for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Area label
+                    if (scaleVal) {
+                        const area = calculatePolygonArea(shape.points, scaleVal);
+                        const cx = shape.points.reduce((s, p) => s + p.x, 0) / shape.points.length;
+                        const cy = shape.points.reduce((s, p) => s + p.y, 0) / shape.points.length;
+                        ctx.font = 'bold 24px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                        ctx.lineWidth = 4;
+                        ctx.strokeText(area.toFixed(1) + ' m²', cx, cy);
+                        ctx.fillStyle = style.stroke;
+                        ctx.fillText(area.toFixed(1) + ' m²', cx, cy);
+                    }
+
+                    // Draw draggable vertices
+                    if (drawVertices) {
+                        shape.points.forEach((p, pIdx) => {
+                            const isActive = draggingVertex && draggingVertex.shapeIdx === sIdx && draggingVertex.pointIdx === pIdx;
+                            ctx.beginPath();
+                            ctx.arc(p.x, p.y, isActive ? 10 : 7, 0, Math.PI * 2);
+                            ctx.fillStyle = isActive ? '#fff' : style.stroke;
+                            ctx.fill();
+                            ctx.strokeStyle = '#fff';
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                        });
+                    }
+                });
+            };
 
             useEffect(() => {
                 const canvas = canvasRef.current;
@@ -1148,39 +1218,8 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 if (img) ctx.drawImage(img, 0, 0);
 
-                // Draw completed shapes
-                shapes.forEach(shape => {
-                    const style = colors[shape.type];
-                    if (!style) return;
-                    ctx.fillStyle = style.fill;
-                    ctx.strokeStyle = style.stroke;
-                    ctx.lineWidth = 3;
-
-                    ctx.beginPath();
-                    ctx.moveTo(shape.points[0].x, shape.points[0].y);
-                    for (let i = 1; i < shape.points.length; i++) {
-                        ctx.lineTo(shape.points[i].x, shape.points[i].y);
-                    }
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-
-                    // Draw area label
-                    if (scale) {
-                        const area = calculatePolygonArea(shape.points);
-                        const centerX = shape.points.reduce((s, p) => s + p.x, 0) / shape.points.length;
-                        const centerY = shape.points.reduce((s, p) => s + p.y, 0) / shape.points.length;
-
-                        ctx.font = 'bold 24px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-                        ctx.lineWidth = 4;
-                        ctx.strokeText(area.toFixed(1) + ' m²', centerX, centerY);
-                        ctx.fillStyle = style.stroke;
-                        ctx.fillText(area.toFixed(1) + ' m²', centerX, centerY);
-                    }
-                });
+                // Draw completed shapes with vertices
+                drawShapesOnCtx(ctx, shapes, scale, true);
 
                 // Draw current polygon being drawn
                 if (currentTool && currentTool !== 'scale' && currentTool !== 'pan' && currentPoints.length > 0) {
@@ -1190,18 +1229,11 @@
                         ctx.lineWidth = 3;
                         ctx.beginPath();
                         ctx.moveTo(currentPoints[0].x, currentPoints[0].y);
-                        for (let i = 1; i < currentPoints.length; i++) {
-                            ctx.lineTo(currentPoints[i].x, currentPoints[i].y);
-                        }
+                        for (let i = 1; i < currentPoints.length; i++) ctx.lineTo(currentPoints[i].x, currentPoints[i].y);
                         if (mousePos) ctx.lineTo(mousePos.x, mousePos.y);
                         ctx.stroke();
-
                         ctx.fillStyle = style.stroke;
-                        currentPoints.forEach(p => {
-                            ctx.beginPath();
-                            ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-                            ctx.fill();
-                        });
+                        currentPoints.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill(); });
                     }
                 }
 
@@ -1212,22 +1244,14 @@
                     ctx.setLineDash([5, 5]);
                     ctx.beginPath();
                     ctx.moveTo(tempScalePoints[0].x, tempScalePoints[0].y);
-                    if (tempScalePoints.length === 1 && mousePos) {
-                        ctx.lineTo(mousePos.x, mousePos.y);
-                    } else if (tempScalePoints.length === 2) {
-                        ctx.lineTo(tempScalePoints[1].x, tempScalePoints[1].y);
-                    }
+                    if (tempScalePoints.length === 1 && mousePos) ctx.lineTo(mousePos.x, mousePos.y);
+                    else if (tempScalePoints.length === 2) ctx.lineTo(tempScalePoints[1].x, tempScalePoints[1].y);
                     ctx.stroke();
                     ctx.setLineDash([]);
-
                     ctx.fillStyle = colors.scale.stroke;
-                    tempScalePoints.forEach(p => {
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
-                        ctx.fill();
-                    });
+                    tempScalePoints.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.fill(); });
                 }
-            }, [img, shapes, currentPoints, currentTool, tempScalePoints, scale, mousePos]);
+            }, [img, shapes, currentPoints, currentTool, tempScalePoints, scale, mousePos, draggingVertex]);
 
             // ============ COORDINATE HELPERS ============
 
@@ -1237,37 +1261,79 @@
                 const rect = canvas.getBoundingClientRect();
                 const scaleX = canvas.width / rect.width;
                 const scaleY = canvas.height / rect.height;
-                return {
-                    x: (e.clientX - rect.left) * scaleX,
-                    y: (e.clientY - rect.top) * scaleY
-                };
+                return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+            };
+
+            // Find if click is near any existing vertex
+            const findNearVertex = (coords) => {
+                for (let sIdx = shapes.length - 1; sIdx >= 0; sIdx--) {
+                    for (let pIdx = 0; pIdx < shapes[sIdx].points.length; pIdx++) {
+                        const p = shapes[sIdx].points[pIdx];
+                        const dist = Math.sqrt((coords.x - p.x) ** 2 + (coords.y - p.y) ** 2);
+                        // Adjust hit radius based on zoom
+                        const adjustedRadius = VERTEX_HIT_RADIUS / (currentZoom || 1);
+                        if (dist < adjustedRadius * 4) return { shapeIdx: sIdx, pointIdx: pIdx };
+                    }
+                }
+                return null;
             };
 
             // ============ CANVAS EVENT HANDLERS ============
 
             const handleCanvasMouseDown = (e) => {
-                if (currentTool === 'pan' || !currentTool) return;
+                if (currentTool === 'pan') return;
                 const coords = getCanvasCoordinates(e);
+
+                // If no tool selected, try to grab a vertex
+                if (!currentTool) {
+                    const hit = findNearVertex(coords);
+                    if (hit) {
+                        setDraggingVertex(hit);
+                        e.preventDefault();
+                        return;
+                    }
+                    return;
+                }
+
                 if (currentTool === 'scale') {
                     const newPoints = [...tempScalePoints, coords];
                     setTempScalePoints(newPoints);
-                    if (newPoints.length === 2) {
-                        setShowCalibrationModal(true);
-                    }
+                    if (newPoints.length === 2) setShowCalibrationModal(true);
                 } else {
                     setCurrentPoints([...currentPoints, coords]);
                 }
             };
 
             const handleCanvasMouseMove = (e) => {
+                const coords = getCanvasCoordinates(e);
+
+                // Vertex dragging
+                if (draggingVertex) {
+                    setShapes(prev => {
+                        const updated = prev.map((s, sIdx) => {
+                            if (sIdx !== draggingVertex.shapeIdx) return s;
+                            const newPts = s.points.map((p, pIdx) =>
+                                pIdx === draggingVertex.pointIdx ? { x: coords.x, y: coords.y } : p
+                            );
+                            return { ...s, points: newPts };
+                        });
+                        return updated;
+                    });
+                    return;
+                }
+
                 if (!currentTool || currentTool === 'pan') return;
-                setMousePos(getCanvasCoordinates(e));
+                setMousePos(coords);
+            };
+
+            const handleCanvasMouseUp = () => {
+                if (draggingVertex) setDraggingVertex(null);
             };
 
             const handleCanvasDoubleClick = () => {
                 if (!currentTool || currentTool === 'scale' || currentTool === 'pan') return;
                 if (currentPoints.length < 3) return;
-                setShapes([...shapes, { type: currentTool, points: [...currentPoints] }]);
+                setShapes(prev => [...prev, { type: currentTool, points: [...currentPoints] }]);
                 setCurrentPoints([]);
             };
 
@@ -1276,11 +1342,7 @@
             const handleContainerMouseDown = (e) => {
                 if (currentTool !== 'pan') return;
                 setIsPanning(true);
-                setPanStart({
-                    x: e.clientX, y: e.clientY,
-                    scrollLeft: containerRef.current?.scrollLeft || 0,
-                    scrollTop: containerRef.current?.scrollTop || 0
-                });
+                setPanStart({ x: e.clientX, y: e.clientY, scrollLeft: containerRef.current?.scrollLeft || 0, scrollTop: containerRef.current?.scrollTop || 0 });
             };
             const handleContainerMouseMove = (e) => {
                 if (!isPanning || !containerRef.current) return;
@@ -1297,32 +1359,26 @@
                     const dx = tempScalePoints[1].x - tempScalePoints[0].x;
                     const dy = tempScalePoints[1].y - tempScalePoints[0].y;
                     const distInPx = Math.sqrt(dx * dx + dy * dy);
-                    setScale(distInPx / meters);
+                    setScaleVal(distInPx / meters);
                     setShowCalibrationModal(false);
                     setTempScalePoints([]);
                     setCurrentTool(null);
                 }
             };
 
-            // ============ AREA CALCULATION ============
-
-            const calculatePolygonArea = (points) => {
-                if (!scale) return 0;
-                let area = 0;
-                let j = points.length - 1;
-                for (let i = 0; i < points.length; i++) {
-                    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
-                    j = i;
-                }
-                return Math.abs(area / 2) / (scale * scale);
-            };
+            // ============ TOTALS ============
 
             const getTotals = () => {
                 const totals = { residential: 0, balcony: 0, cellar: 0, garage: 0, accessories: 0 };
-                shapes.forEach(shape => {
-                    if (totals[shape.type] !== undefined) {
-                        totals[shape.type] += calculatePolygonArea(shape.points);
-                    }
+                // Sum across ALL pages
+                Object.keys(shapesPerPage).forEach(pageIdx => {
+                    const pageShapes = shapesPerPage[pageIdx] || [];
+                    const pageScale = scalePerPage[pageIdx] || null;
+                    pageShapes.forEach(shape => {
+                        if (totals[shape.type] !== undefined) {
+                            totals[shape.type] += calculatePolygonArea(shape.points, pageScale);
+                        }
+                    });
                 });
                 return totals;
             };
@@ -1342,52 +1398,133 @@
             };
             const changeZoom = (delta) => setCurrentZoom(prev => Math.max(0.1, prev + delta));
 
-            // ============ DOWNLOAD ============
+            // ============ EXPORT PDF (multi-page, compressed) ============
 
-const EFFETRE_LOGO_B64 = 'data:image/png;base64,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';
+            const EFFETRE_LOGO_B64 = 'data:image/png;base64,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';
 
-            const handleDownload = () => {
-                const canvas = canvasRef.current;
-                if (!canvas) return;
+            const renderPageToCanvas = (pageImg, pageShapes, pageScale) => {
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = pageImg.width;
+                offCanvas.height = pageImg.height;
+                const ctx = offCanvas.getContext('2d');
+                ctx.drawImage(pageImg, 0, 0);
+                drawShapesOnCtx(ctx, pageShapes, pageScale, false);
+                return offCanvas;
+            };
+
+            const loadImage = (src) => new Promise((resolve, reject) => {
+                const i = new Image();
+                i.onload = () => resolve(i);
+                i.onerror = reject;
+                i.src = src;
+            });
+
+            const handleDownload = async () => {
                 if (typeof window.jspdf === 'undefined') {
                     alert('Libreria jsPDF non disponibile. Ricarica la pagina.');
                     return;
                 }
-                const { jsPDF } = window.jspdf;
-                const imgData = canvas.toDataURL('image/png');
-                const ratio = canvas.width / canvas.height;
-                const isLandscape = ratio >= 1;
-                let pdfW, pdfH;
-                if (isLandscape) {
-                    pdfW = 297; pdfH = 297 / ratio;
-                } else {
-                    pdfH = 297; pdfW = 297 * ratio;
-                }
-                // Add footer space
-                const footerH = 12;
-                const totalH = pdfH + footerH;
-                const doc = new jsPDF({
-                    orientation: isLandscape ? 'landscape' : 'portrait',
-                    unit: 'mm',
-                    format: [pdfW, totalH]
-                });
-                // Draw planimetry image
-                doc.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
-                // Footer background
-                doc.setFillColor(26, 26, 26);
-                doc.rect(0, pdfH, pdfW, footerH, 'F');
-                // Add logo (small, bottom right area)
+                setIsExporting(true);
                 try {
-                    const logoSize = 7;
-                    doc.addImage(EFFETRE_LOGO_B64, 'PNG', pdfW - 90 - logoSize - 2, pdfH + (footerH - logoSize) / 2, logoSize, logoSize);
-                } catch(e) { console.warn('Logo embed error:', e); }
-                // Copyright text
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(7);
-                doc.setTextColor(180, 160, 100);
-                doc.text('© Effetre Properties AutoValue 2026 - tutti i diritti riservati', pdfW - 90, pdfH + footerH / 2 + 1, { align: 'left' });
-                // Save
-                doc.save((uploadedFile?.name || 'planimetria').replace(/\.[^.]+$/, '') + '_superfici.pdf');
+                    const { jsPDF } = window.jspdf;
+
+                    // Determine all pages to export
+                    let pageSources = [];
+                    if (pdfPages.length > 0) {
+                        pageSources = pdfPages.map((src, idx) => ({ src, idx }));
+                    } else if (uploadedFile && uploadedFile.dataUrl) {
+                        pageSources = [{ src: uploadedFile.dataUrl, idx: 0 }];
+                    }
+                    if (pageSources.length === 0) { setIsExporting(false); return; }
+
+                    // Target max ~2MB. Budget per page for image data.
+                    const MAX_TOTAL_BYTES = 2 * 1024 * 1024;
+                    const byteBudgetPerPage = Math.floor(MAX_TOTAL_BYTES * 0.9 / pageSources.length);
+
+                    let doc = null;
+                    const footerH = 12;
+
+                    for (let p = 0; p < pageSources.length; p++) {
+                        const { src, idx } = pageSources[p];
+                        const pageImg = await loadImage(src);
+                        const pageShapes = shapesPerPage[idx] || [];
+                        const pageScale = scalePerPage[idx] || null;
+
+                        // Render shapes onto image
+                        const rendered = renderPageToCanvas(pageImg, pageShapes, pageScale);
+
+                        // Compress: try JPEG at decreasing quality until under budget
+                        let quality = 0.65;
+                        let imgData = rendered.toDataURL('image/jpeg', quality);
+                        let byteSize = Math.round(imgData.length * 0.75); // approx base64 to bytes
+
+                        // If still too big, reduce further
+                        while (byteSize > byteBudgetPerPage && quality > 0.2) {
+                            quality -= 0.1;
+                            imgData = rendered.toDataURL('image/jpeg', quality);
+                            byteSize = Math.round(imgData.length * 0.75);
+                        }
+
+                        // If still over budget, downscale canvas
+                        if (byteSize > byteBudgetPerPage) {
+                            const scaleFactor = Math.sqrt(byteBudgetPerPage / byteSize) * 0.9;
+                            const smallCanvas = document.createElement('canvas');
+                            smallCanvas.width = Math.round(rendered.width * scaleFactor);
+                            smallCanvas.height = Math.round(rendered.height * scaleFactor);
+                            const sCtx = smallCanvas.getContext('2d');
+                            sCtx.drawImage(rendered, 0, 0, smallCanvas.width, smallCanvas.height);
+                            imgData = smallCanvas.toDataURL('image/jpeg', 0.5);
+                        }
+
+                        const ratio = rendered.width / rendered.height;
+                        const isLandscape = ratio >= 1;
+                        let pdfW, pdfH;
+                        if (isLandscape) { pdfW = 297; pdfH = 297 / ratio; }
+                        else { pdfH = 297; pdfW = 297 * ratio; }
+
+                        const totalH = pdfH + footerH;
+
+                        if (p === 0) {
+                            doc = new jsPDF({
+                                orientation: isLandscape ? 'landscape' : 'portrait',
+                                unit: 'mm',
+                                format: [isLandscape ? Math.max(pdfW, totalH) : pdfW, isLandscape ? Math.min(pdfW, totalH) : totalH]
+                            });
+                        } else {
+                            doc.addPage([isLandscape ? Math.max(pdfW, totalH) : pdfW, isLandscape ? Math.min(pdfW, totalH) : totalH],
+                                isLandscape ? 'landscape' : 'portrait');
+                        }
+
+                        doc.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
+
+                        // Footer
+                        doc.setFillColor(26, 26, 26);
+                        doc.rect(0, pdfH, pdfW, footerH, 'F');
+                        try {
+                            const logoSize = 7;
+                            doc.addImage(EFFETRE_LOGO_B64, 'PNG', pdfW - 90 - logoSize - 2, pdfH + (footerH - logoSize) / 2, logoSize, logoSize);
+                        } catch(e) { console.warn('Logo embed error:', e); }
+                        doc.setFont('helvetica', 'normal');
+                        doc.setFontSize(7);
+                        doc.setTextColor(180, 160, 100);
+                        doc.text('\u00A9 Effetre Properties AutoValue 2026 - tutti i diritti riservati', pdfW - 90, pdfH + footerH / 2 + 1, { align: 'left' });
+
+                        // Page number if multi-page
+                        if (pageSources.length > 1) {
+                            doc.setFontSize(7);
+                            doc.setTextColor(120, 120, 120);
+                            doc.text('Pag. ' + (p + 1) + '/' + pageSources.length, 5, pdfH + footerH / 2 + 1);
+                        }
+                    }
+
+                    if (doc) {
+                        doc.save((uploadedFile?.name || 'planimetria').replace(/\.[^.]+$/, '') + '_superfici.pdf');
+                    }
+                } catch (err) {
+                    console.error('Errore export PDF:', err);
+                    alert('Errore durante l\'esportazione. Riprova.');
+                }
+                setIsExporting(false);
             };
 
             // ============ PAGE CHANGE (PDF) ============
@@ -1396,300 +1533,205 @@ const EFFETRE_LOGO_B64 = 'data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHY
                 const newPage = currentPage + dir;
                 if (newPage < 0 || newPage >= pdfPages.length) return;
                 setCurrentPage(newPage);
-                setShapes([]); setCurrentPoints([]); setScale(null);
+                setCurrentPoints([]);
+                setDraggingVertex(null);
+                // shapes & scale preserved via shapesPerPage/scalePerPage
             };
 
             // ============ RENDER: UPLOAD SCREEN ============
 
             if (!uploadedFile && pdfPages.length === 0) {
                 return (
-                    <div className="home-screen">
-                        <div className="max-w-2xl mx-auto text-center px-4">
-                            <div className="flex justify-center mb-6">
-                                <img src={LOGO_BASE64} alt="Effetre Properties" className="h-28 w-auto" />
-                            </div>
-                            <h1 className="text-4xl font-bold text-white mb-2">📐 Misura Superfici</h1>
-                            <p className="text-lg text-gray-300 mb-10">Carica una planimetria PDF o immagine per calcolare le aree</p>
-
-                            <div
-                                className="upload-zone"
-                                onDrop={onDrop}
-                                onDragOver={onDragOver}
-                                onClick={() => document.getElementById('planimetry-file-input').click()}
-                            >
-                                {isLoading ? (
-                                    <div>
-                                        <p className="text-2xl mb-2">⏳</p>
-                                        <p className="text-yellow-400 font-bold text-lg">Caricamento in corso...</p>
-                                        <p className="text-gray-400 text-sm mt-2">Rendering pagine PDF</p>
-                                    </div>
-                                ) : (
-                                    <div>
-                                        <p className="text-4xl mb-4">📄</p>
-                                        <p className="text-yellow-400 font-bold text-lg">Trascina qui il file o clicca per selezionare</p>
-                                        <p className="text-gray-400 text-sm mt-3">Formati supportati: PDF, PNG, JPG, JPEG, TIFF, BMP</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <input
-                                id="planimetry-file-input"
-                                type="file"
-                                accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp,image/*,application/pdf"
-                                style={{ display: 'none' }}
-                                onChange={(e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); }}
-                            />
-
-                            <button
-                                onClick={onBack}
-                                className="mt-8 text-gray-400 hover:text-white transition-colors text-sm"
-                            >
-                                ← Torna alla Home
-                            </button>
-                        </div>
-                    </div>
+                    React.createElement('div', { className: 'home-screen' },
+                        React.createElement('div', { className: 'max-w-2xl mx-auto text-center px-4' },
+                            React.createElement('div', { className: 'flex justify-center mb-6' },
+                                React.createElement('img', { src: LOGO_BASE64, alt: 'Effetre Properties', className: 'h-28 w-auto' })
+                            ),
+                            React.createElement('h1', { className: 'text-4xl font-bold text-white mb-2' }, '📐 Misura Superfici'),
+                            React.createElement('p', { className: 'text-lg text-gray-300 mb-10' }, 'Carica una planimetria PDF o immagine per calcolare le aree'),
+                            React.createElement('div', {
+                                className: 'upload-zone',
+                                onDrop: onDrop,
+                                onDragOver: onDragOver,
+                                onClick: () => document.getElementById('planimetry-file-input').click()
+                            },
+                                isLoading ?
+                                    React.createElement('div', null,
+                                        React.createElement('p', { className: 'text-2xl mb-2' }, '⏳'),
+                                        React.createElement('p', { className: 'text-yellow-400 font-bold text-lg' }, 'Caricamento in corso...'),
+                                        React.createElement('p', { className: 'text-gray-400 text-sm mt-2' }, 'Rendering pagine PDF')
+                                    ) :
+                                    React.createElement('div', null,
+                                        React.createElement('p', { className: 'text-4xl mb-4' }, '📄'),
+                                        React.createElement('p', { className: 'text-yellow-400 font-bold text-lg' }, 'Trascina qui il file o clicca per selezionare'),
+                                        React.createElement('p', { className: 'text-gray-400 text-sm mt-3' }, 'Formati supportati: PDF, PNG, JPG, JPEG, TIFF, BMP')
+                                    )
+                            ),
+                            React.createElement('input', {
+                                id: 'planimetry-file-input',
+                                type: 'file',
+                                accept: '.pdf,.png,.jpg,.jpeg,.tiff,.bmp,image/*,application/pdf',
+                                style: { display: 'none' },
+                                onChange: (e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); }
+                            }),
+                            React.createElement('button', {
+                                onClick: onBack,
+                                className: 'mt-8 text-gray-400 hover:text-white transition-colors text-sm'
+                            }, '← Torna alla Home')
+                        )
+                    )
                 );
             }
 
             // ============ RENDER: MAIN TOOL ============
 
-            const canvasW = canvasRef.current ? canvasRef.current.width * currentZoom : 0;
-            const canvasH = canvasRef.current ? canvasRef.current.height * currentZoom : 0;
+            return React.createElement('div', { style: { display: 'flex', height: '100vh', backgroundColor: '#111' } },
 
-            return (
-                <div className="planimetry-container" style={{ position: 'fixed', inset: 0, background: '#0f172a', zIndex: 50, display: 'flex' }}>
+                // ---- SIDEBAR ----
+                React.createElement('div', { className: 'planimetry-sidebar' },
+                    React.createElement('div', { style: { padding: '16px' } },
+                        React.createElement('button', {
+                            onClick: () => { setUploadedFile(null); setPdfPages([]); setShapesPerPage({}); setScalePerPage({}); setCurrentPoints([]); setDraggingVertex(null); },
+                            className: 'plan-tool-btn',
+                            style: { width: '100%', marginBottom: '16px' }
+                        }, '📂 Nuovo File'),
 
-                    {/* ===== SIDEBAR ===== */}
-                    <aside className="planimetry-sidebar" style={{ position: 'relative' }}>
-                        <div className="gradient-bar"></div>
-                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        React.createElement('div', { style: { marginBottom: '16px' } },
+                            React.createElement('h3', { style: { color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '1px' } }, 'Strumenti'),
+                            React.createElement('button', {
+                                onClick: () => { setCurrentTool('scale'); setTempScalePoints([]); setDraggingVertex(null); },
+                                className: 'plan-tool-btn',
+                                style: { width: '100%', marginBottom: '4px', background: currentTool === 'scale' ? 'rgba(236,72,153,0.3)' : '', borderColor: currentTool === 'scale' ? 'rgba(236,72,153,0.5)' : '' }
+                            }, '📏 Calibra Scala', scale ? ' ✓' : ''),
+                            React.createElement('button', {
+                                onClick: () => { setCurrentTool('pan'); setDraggingVertex(null); },
+                                className: 'plan-tool-btn',
+                                style: { width: '100%', marginBottom: '4px', background: currentTool === 'pan' ? 'rgba(255,255,255,0.15)' : '' }
+                            }, '✋ Sposta Vista'),
+                            React.createElement('button', {
+                                onClick: () => { setCurrentTool(null); setCurrentPoints([]); setDraggingVertex(null); },
+                                className: 'plan-tool-btn',
+                                style: { width: '100%', marginBottom: '4px', background: !currentTool ? 'rgba(255,255,255,0.15)' : '' }
+                            }, '🔧 Modifica Vertici')
+                        ),
 
-                            {/* Header */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ width: 40, height: 40, background: '#2563eb', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '1.2rem' }}>📐</div>
-                                    <div>
-                                        <h2 style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'white', margin: 0 }}>Misura Superfici</h2>
-                                        <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0 }}>Strumento di precisione</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => { setUploadedFile(null); setPdfPages([]); setShapes([]); setScale(null); }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.2rem' }} title="Cambia file">✕</button>
-                            </div>
+                        React.createElement('div', { style: { marginBottom: '16px' } },
+                            React.createElement('h3', { style: { color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '1px' } }, 'Categorie'),
+                            toolDefs.map(t =>
+                                React.createElement('button', {
+                                    key: t.id,
+                                    onClick: () => { setCurrentTool(t.id); setDraggingVertex(null); },
+                                    className: 'plan-tool-btn',
+                                    style: { width: '100%', marginBottom: '4px', background: currentTool === t.id ? t.colorBg : '', borderColor: currentTool === t.id ? t.colorBorder : '' }
+                                }, t.icon + ' ' + t.label)
+                            )
+                        ),
 
-                            {/* File info */}
-                            <div style={{ background: 'rgba(30,41,59,0.5)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid #1e293b' }}>
-                                <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0 }}>📎 {uploadedFile?.name || 'File caricato'}</p>
-                            </div>
+                        React.createElement('div', { style: { marginBottom: '16px' } },
+                            React.createElement('h3', { style: { color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '1px' } }, 'Azioni'),
+                            React.createElement('button', {
+                                onClick: () => { if (currentPoints.length > 0) setCurrentPoints(prev => prev.slice(0, -1)); else setShapes(prev => prev.slice(0, -1)); },
+                                className: 'plan-tool-btn', style: { width: '100%', marginBottom: '4px' }
+                            }, '↩️ Annulla Ultimo'),
+                            React.createElement('button', {
+                                onClick: () => { setShapes([]); setCurrentPoints([]); setDraggingVertex(null); },
+                                className: 'plan-tool-btn', style: { width: '100%', marginBottom: '4px' }
+                            }, '🗑️ Cancella Tutto (pagina)')
+                        ),
 
-                            {/* PDF page navigation */}
-                            {pdfPages.length > 1 && (
-                                <div style={{ background: 'rgba(30,41,59,0.5)', padding: '1rem', borderRadius: '0.75rem', border: '1px solid #334155' }}>
-                                    <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Pagine PDF</h3>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                                        <button onClick={() => changePage(-1)} disabled={currentPage === 0}
-                                            style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.5rem', background: '#334155', color: '#cbd5e1', border: 'none', cursor: currentPage === 0 ? 'not-allowed' : 'pointer', opacity: currentPage === 0 ? 0.3 : 1, fontWeight: 'bold', fontSize: '1.1rem' }}>‹</button>
-                                        <div style={{ textAlign: 'center', flex: 1 }}>
-                                            <span style={{ color: 'white', fontWeight: 'bold', fontSize: '0.875rem' }}>{currentPage + 1}</span>
-                                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}> / {pdfPages.length}</span>
-                                        </div>
-                                        <button onClick={() => changePage(1)} disabled={currentPage === pdfPages.length - 1}
-                                            style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.5rem', background: '#334155', color: '#cbd5e1', border: 'none', cursor: currentPage === pdfPages.length - 1 ? 'not-allowed' : 'pointer', opacity: currentPage === pdfPages.length - 1 ? 0.3 : 1, fontWeight: 'bold', fontSize: '1.1rem' }}>›</button>
-                                    </div>
-                                    <p style={{ fontSize: '0.6rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>Cambiare pagina resetta le misure</p>
-                                </div>
-                            )}
+                        // Riepilogo
+                        React.createElement('div', { style: { marginBottom: '16px' } },
+                            React.createElement('h3', { style: { color: '#9ca3af', fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '1px' } }, 'Riepilogo (tutte le pagine)'),
+                            toolDefs.map(t =>
+                                React.createElement('div', { key: t.id, style: { display: 'flex', justifyContent: 'space-between', color: t.colorLabel, fontSize: '13px', marginBottom: '3px' } },
+                                    React.createElement('span', null, t.icon + ' ' + t.label),
+                                    React.createElement('span', null, (totals[t.id] || 0).toFixed(1) + ' m²')
+                                )
+                            ),
+                            React.createElement('div', { style: { borderTop: '1px solid #555', marginTop: '8px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', color: '#f1c40f', fontWeight: 'bold', fontSize: '14px' } },
+                                React.createElement('span', null, 'TOTALE'),
+                                React.createElement('span', null, grandTotal.toFixed(1) + ' m²')
+                            )
+                        ),
 
-                            {/* Calibration */}
-                            <div>
-                                <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.75rem' }}>1. Calibrazione</h3>
-                                <button
-                                    onClick={() => { setTempScalePoints([]); setCurrentTool('scale'); }}
-                                    className={currentTool === 'scale' ? 'plan-tool-btn active' : 'plan-tool-btn'}
-                                    style={ currentTool === 'scale' ? { background: 'linear-gradient(to right, #db2777, #be185d)' } : {} }
-                                >
-                                    <div className="plan-icon-box" style={{ background: 'rgba(236,72,153,0.15)', border: '1px solid rgba(236,72,153,0.3)' }}>📏</div>
-                                    <div style={{ textAlign: 'left' }}>
-                                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Imposta Scala</div>
-                                        <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>Traccia misura nota</div>
-                                    </div>
-                                </button>
-                                {scale && (
-                                    <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#34d399', background: 'rgba(16,185,129,0.1)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center' }}>
-                                        ✅ <span style={{ marginLeft: '0.5rem' }}>Scala: <strong style={{ color: 'white' }}>{scale.toFixed(2)}</strong> px/m</span>
-                                    </div>
-                                )}
-                            </div>
+                        // Download
+                        React.createElement('button', {
+                            onClick: handleDownload,
+                            disabled: isExporting,
+                            className: 'plan-tool-btn',
+                            style: { width: '100%', marginTop: '8px', background: 'rgba(245,158,11,0.2)', borderColor: 'rgba(245,158,11,0.4)', color: '#f59e0b', opacity: isExporting ? 0.5 : 1 }
+                        }, isExporting ? '⏳ Esportazione...' : '⬇️ Scarica PDF con Superfici')
+                    )
+                ),
 
-                            {/* Category tools */}
-                            <div>
-                                <h3 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '0.75rem' }}>2. Categorie</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    {toolDefs.map(tool => (
-                                        <button
-                                            key={tool.id}
-                                            onClick={() => { setCurrentPoints([]); setCurrentTool(tool.id); }}
-                                            className={currentTool === tool.id ? 'plan-tool-btn active' : 'plan-tool-btn'}
-                                        >
-                                            <div className="plan-icon-box" style={{ background: tool.colorBg, border: '1px solid ' + tool.colorBorder }}>{tool.icon}</div>
-                                            <div style={{ textAlign: 'left' }}>
-                                                <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{tool.label}</div>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                // ---- CANVAS AREA ----
+                React.createElement('div', { className: 'plan-canvas-area' },
+                    // Zoom bar
+                    React.createElement('div', { className: 'plan-zoom-bar' },
+                        React.createElement('button', { onClick: () => changeZoom(0.1) }, '🔍+'),
+                        React.createElement('button', { onClick: () => changeZoom(-0.1) }, '🔍−'),
+                        React.createElement('button', { onClick: fitToScreen }, 'Fit'),
+                        React.createElement('span', { style: { color: '#aaa', fontSize: '12px', marginLeft: '8px' } }, (currentZoom * 100).toFixed(0) + '%'),
+                        // Page navigation
+                        pdfPages.length > 1 && React.createElement(React.Fragment, null,
+                            React.createElement('span', { style: { color: '#666', margin: '0 8px' } }, '|'),
+                            React.createElement('button', { onClick: () => changePage(-1), disabled: currentPage === 0 }, '◀'),
+                            React.createElement('span', { style: { color: '#ccc', fontSize: '12px', margin: '0 6px' } }, 'Pag. ' + (currentPage + 1) + '/' + pdfPages.length),
+                            React.createElement('button', { onClick: () => changePage(1), disabled: currentPage >= pdfPages.length - 1 }, '▶')
+                        ),
+                        !currentTool && React.createElement('span', { style: { color: '#f59e0b', fontSize: '11px', marginLeft: '12px' } }, '🔧 Trascina i vertici per modificare')
+                    ),
+                    // Canvas container
+                    React.createElement('div', {
+                        ref: containerRef,
+                        style: { flex: 1, overflow: 'auto', cursor: currentTool === 'pan' ? (isPanning ? 'grabbing' : 'grab') : (draggingVertex ? 'grabbing' : (!currentTool ? 'pointer' : 'crosshair')), position: 'relative' },
+                        onMouseDown: handleContainerMouseDown,
+                        onMouseMove: handleContainerMouseMove,
+                        onMouseUp: handleContainerMouseUp,
+                        onMouseLeave: handleContainerMouseUp
+                    },
+                        React.createElement('canvas', {
+                            ref: canvasRef,
+                            style: { transform: 'scale(' + currentZoom + ')', transformOrigin: 'top left' },
+                            onMouseDown: handleCanvasMouseDown,
+                            onMouseMove: handleCanvasMouseMove,
+                            onMouseUp: handleCanvasMouseUp,
+                            onDoubleClick: handleCanvasDoubleClick
+                        })
+                    )
+                ),
 
-                            {/* Summary */}
-                            <div style={{ background: '#020617', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid #1e293b' }}>
-                                <h4 style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', borderBottom: '1px solid #1e293b', paddingBottom: '0.5rem', marginBottom: '0.75rem' }}>Riepilogo</h4>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                                    <div className="plan-summary-row"><span style={{ color: '#ef4444' }}>Residenziale</span><span style={{ color: 'white', fontWeight: 'bold' }}>{totals.residential.toFixed(2)} m²</span></div>
-                                    <div className="plan-summary-row"><span style={{ color: '#3b82f6' }}>Balconi</span><span style={{ color: 'white', fontWeight: 'bold' }}>{totals.balcony.toFixed(2)} m²</span></div>
-                                    <div className="plan-summary-row"><span style={{ color: '#10b981' }}>Cantina</span><span style={{ color: 'white', fontWeight: 'bold' }}>{totals.cellar.toFixed(2)} m²</span></div>
-                                    <div className="plan-summary-row"><span style={{ color: '#f97316' }}>Box</span><span style={{ color: 'white', fontWeight: 'bold' }}>{totals.garage.toFixed(2)} m²</span></div>
-                                    <div className="plan-summary-row"><span style={{ color: '#a855f7' }}>Accessori</span><span style={{ color: 'white', fontWeight: 'bold' }}>{totals.accessories.toFixed(2)} m²</span></div>
-                                </div>
-                                <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 'bold' }}>Totale</span>
-                                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#facc15' }}>{grandTotal.toFixed(2)} <span style={{ fontSize: '0.75rem', color: '#a16207' }}>m²</span></span>
-                                </div>
-                            </div>
-
-                            {/* Actions */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                <button
-                                    onClick={handleDownload}
-                                    disabled={shapes.length === 0}
-                                    style={{
-                                        width: '100%', padding: '0.75rem 1rem', borderRadius: '0.75rem', fontWeight: 'bold', color: 'white',
-                                        background: shapes.length > 0 ? '#2563eb' : '#334155',
-                                        border: 'none', cursor: shapes.length > 0 ? 'pointer' : 'not-allowed',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.875rem',
-                                        opacity: shapes.length === 0 ? 0.5 : 1
-                                    }}
-                                >
-                                    ⬇️ Scarica PDF con Superfici
-                                </button>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                                    <button
-                                        onClick={() => {
-                                            if (currentPoints.length > 0) { setCurrentPoints(currentPoints.slice(0, -1)); }
-                                            else if (shapes.length > 0) { setShapes(shapes.slice(0, -1)); }
-                                        }}
-                                        style={{ padding: '0.625rem 1rem', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: '#94a3b8', background: '#1e293b', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                                    >
-                                        ↩️ Annulla
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (confirm('Cancellare tutte le misurazioni?')) { setShapes([]); setCurrentPoints([]); }
-                                        }}
-                                        style={{ padding: '0.625rem 1rem', borderRadius: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: '#f87171', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                                    >
-                                        🗑️ Reset
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={onBack}
-                                    style={{ width: '100%', padding: '0.625rem', fontSize: '0.8rem', color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer' }}
-                                >
-                                    ← Torna alla Home
-                                </button>
-                            </div>
-                        </div>
-                    </aside>
-
-                    {/* ===== CANVAS AREA ===== */}
-                    <div className="plan-canvas-area">
-
-                        {/* Instructions toast */}
-                        {currentTool && currentTool !== 'pan' && (
-                            <div className="plan-toast">
-                                <div className="plan-toast-inner">
-                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6', display: 'inline-block', animation: 'pulse 2s infinite' }}></span>
-                                    <span>{currentTool === 'scale' ? 'Traccia una linea di riferimento con misura nota' : 'Clicca per i vertici del poligono. Doppio click per chiudere.'}</span>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Scrollable canvas container */}
-                        <div
-                            ref={containerRef}
-                            style={{ flex: 1, background: '#f1f5f9', overflow: 'auto' }}
-                            onMouseDown={handleContainerMouseDown}
-                            onMouseMove={handleContainerMouseMove}
-                            onMouseUp={handleContainerMouseUp}
-                        >
-                            <div style={{ minHeight: '100%', minWidth: '100%', display: 'flex', padding: '2.5rem' }}>
-                                <div style={{ position: 'relative', background: 'white', margin: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-                                    <canvas
-                                        ref={canvasRef}
-                                        onMouseDown={handleCanvasMouseDown}
-                                        onMouseMove={handleCanvasMouseMove}
-                                        onDoubleClick={handleCanvasDoubleClick}
-                                        style={{
-                                            width: canvasW > 0 ? canvasW + 'px' : 'auto',
-                                            height: canvasH > 0 ? canvasH + 'px' : 'auto',
-                                            cursor: currentTool === 'pan' ? (isPanning ? 'grabbing' : 'grab') : 'crosshair',
-                                            display: 'block'
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Zoom bar */}
-                        <div className="plan-zoom-bar">
-                            <button
-                                onClick={() => { setCurrentPoints([]); setCurrentTool('pan'); }}
-                                className={currentTool === 'pan' ? 'plan-zoom-btn active-pan' : 'plan-zoom-btn'}
-                                title="Sposta (Pan)"
-                            >✋</button>
-                            <div style={{ width: 1, height: 20, background: 'rgba(71,85,105,0.5)', margin: '0 0.25rem' }}></div>
-                            <button onClick={() => changeZoom(-0.1)} className="plan-zoom-btn" title="Zoom out">🔍−</button>
-                            <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: 'bold', color: '#cbd5e1', width: 48, textAlign: 'center' }}>{Math.round(currentZoom * 100)}%</span>
-                            <button onClick={() => changeZoom(0.1)} className="plan-zoom-btn" title="Zoom in">🔍+</button>
-                            <div style={{ width: 1, height: 20, background: 'rgba(71,85,105,0.5)', margin: '0 0.25rem' }}></div>
-                            <button onClick={fitToScreen} className="plan-zoom-btn" title="Adatta allo schermo">⛶</button>
-                        </div>
-                    </div>
-
-                    {/* ===== CALIBRATION MODAL ===== */}
-                    {showCalibrationModal && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
-                            <div style={{ background: 'white', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', width: 320, border: '1px solid #e2e8f0' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#fce7f3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>📏</div>
-                                    <div>
-                                        <h3 style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#1e293b', margin: 0 }}>Calibrazione</h3>
-                                        <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>Definisci la scala reale</p>
-                                    </div>
-                                </div>
-                                <label style={{ fontSize: '0.875rem', fontWeight: 500, color: '#475569', marginBottom: '0.375rem', display: 'block' }}>Lunghezza linea tracciata:</label>
-                                <div style={{ position: 'relative', marginBottom: '1.5rem' }}>
-                                    <input
-                                        type="number"
-                                        value={calibrationLength}
-                                        onChange={(e) => setCalibrationLength(e.target.value)}
-                                        onKeyPress={(e) => e.key === 'Enter' && confirmCalibration()}
-                                        style={{ width: '100%', border: '1px solid #d1d5db', background: '#f8fafc', padding: '0.75rem', paddingRight: '3rem', borderRadius: '0.75rem', fontWeight: 'bold', color: '#1e293b', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }}
-                                    />
-                                    <span style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 500, fontSize: '0.875rem' }}>metri</span>
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                                    <button onClick={() => { setShowCalibrationModal(false); setTempScalePoints([]); }}
-                                        style={{ padding: '0.625rem 1.25rem', color: '#475569', fontWeight: 500, background: 'transparent', border: 'none', borderRadius: '0.75rem', cursor: 'pointer' }}>
-                                        Annulla
-                                    </button>
-                                    <button onClick={confirmCalibration}
-                                        style={{ padding: '0.625rem 1.25rem', background: '#2563eb', color: 'white', fontWeight: 'bold', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(37,99,235,0.2)' }}>
-                                        Conferma
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                // ---- CALIBRATION MODAL ----
+                showCalibrationModal && React.createElement('div', {
+                    style: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }
+                },
+                    React.createElement('div', {
+                        style: { background: '#1a1a2e', borderRadius: '12px', padding: '24px', maxWidth: '400px', width: '90%', border: '1px solid #333' }
+                    },
+                        React.createElement('h3', { style: { color: '#fff', marginBottom: '12px', fontSize: '18px' } }, '📏 Calibrazione Scala'),
+                        React.createElement('p', { style: { color: '#9ca3af', marginBottom: '16px', fontSize: '14px' } }, 'Inserisci la misura reale del segmento tracciato:'),
+                        React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '16px' } },
+                            React.createElement('input', {
+                                type: 'number', value: calibrationLength,
+                                onChange: (e) => setCalibrationLength(e.target.value),
+                                style: { flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #444', background: '#111', color: '#fff', fontSize: '16px' },
+                                autoFocus: true,
+                                onKeyDown: (e) => { if (e.key === 'Enter') confirmCalibration(); }
+                            }),
+                            React.createElement('span', { style: { color: '#ccc', fontSize: '16px' } }, 'metri')
+                        ),
+                        React.createElement('div', { style: { display: 'flex', gap: '8px' } },
+                            React.createElement('button', {
+                                onClick: () => { setShowCalibrationModal(false); setTempScalePoints([]); setCurrentTool(null); },
+                                style: { flex: 1, padding: '10px', borderRadius: '8px', background: '#333', color: '#fff', border: 'none', cursor: 'pointer' }
+                            }, 'Annulla'),
+                            React.createElement('button', {
+                                onClick: confirmCalibration,
+                                style: { flex: 1, padding: '10px', borderRadius: '8px', background: '#f59e0b', color: '#000', border: 'none', cursor: 'pointer', fontWeight: 'bold' }
+                            }, 'Conferma')
+                        )
+                    )
+                )
             );
         }
         // END PlanimetryToolScreen
