@@ -1143,10 +1143,20 @@
                         canvasRef.current.width = image.width;
                         canvasRef.current.height = image.height;
                     }
-                    setTimeout(() => fitToScreen(), 100);
                 };
                 image.src = src;
             }, [uploadedFile, pdfPages, currentPage]);
+
+            // Robust fit-to-screen: retry multiple times after image loads to ensure container is laid out
+            useEffect(() => {
+                if (!img) return;
+                const timers = [
+                    setTimeout(() => fitToScreen(), 50),
+                    setTimeout(() => fitToScreen(), 200),
+                    setTimeout(() => fitToScreen(), 500)
+                ];
+                return () => timers.forEach(clearTimeout);
+            }, [img]);
 
             // ============ AREA CALCULATION ============
 
@@ -1497,7 +1507,89 @@
 
                         doc.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
 
-                        // Footer
+                        // ---- SUMMARY TABLE for this page ----
+                        const catMeta = {
+                            residential:  { r: 239, g: 68,  b: 68,  label: 'Residenziale' },
+                            balcony:      { r: 59,  g: 130, b: 246, label: 'Balconi/Terrazzi' },
+                            cellar:       { r: 16,  g: 185, b: 129, label: 'Cantina' },
+                            garage:       { r: 249, g: 115, b: 22,  label: 'Box/Garage' },
+                            accessories:  { r: 168, g: 85,  b: 247, label: 'Accessori' }
+                        };
+
+                        if (pageShapes.length > 0 && pageScale) {
+                            // Calculate per-category areas for THIS page only
+                            const pgAreas = {};
+                            let pgTotal = 0;
+                            pageShapes.forEach(sh => {
+                                const a = calculatePolygonArea(sh.points, pageScale);
+                                pgAreas[sh.type] = (pgAreas[sh.type] || 0) + a;
+                                pgTotal += a;
+                            });
+                            const cats = Object.keys(pgAreas);
+
+                            const rowH = 6.5;
+                            const headerH = 9;
+                            const totalRowH = 8;
+                            const padV = 3;
+                            const tableW = 78;
+                            const tableH = headerH + cats.length * rowH + totalRowH + padV * 2;
+                            const tableX = 4;
+                            const tableY = pdfH - tableH - 4;
+
+                            // Dark background with border
+                            doc.setFillColor(20, 20, 30);
+                            doc.setDrawColor(80, 80, 80);
+                            doc.setLineWidth(0.3);
+                            doc.roundedRect(tableX, tableY, tableW, tableH, 2, 2, 'FD');
+
+                            // Header line
+                            doc.setFillColor(35, 35, 50);
+                            doc.roundedRect(tableX, tableY, tableW, headerH, 2, 2, 'F');
+                            // Cover bottom corners of header (sharp join)
+                            doc.setFillColor(35, 35, 50);
+                            doc.rect(tableX, tableY + headerH - 2, tableW, 2, 'F');
+
+                            doc.setFont('helvetica', 'bold');
+                            doc.setFontSize(8);
+                            doc.setTextColor(255, 255, 255);
+                            doc.text('RIEPILOGO SUPERFICI', tableX + tableW / 2, tableY + 6, { align: 'center' });
+
+                            // Category rows
+                            let yR = tableY + headerH + padV + 3;
+                            doc.setFont('helvetica', 'normal');
+                            doc.setFontSize(7.5);
+
+                            cats.forEach(cat => {
+                                const cm = catMeta[cat];
+                                if (!cm) return;
+                                // Color square
+                                doc.setFillColor(cm.r, cm.g, cm.b);
+                                doc.roundedRect(tableX + 4, yR - 3.2, 4, 4, 0.8, 0.8, 'F');
+                                // Category label
+                                doc.setTextColor(210, 210, 210);
+                                doc.text(cm.label, tableX + 11, yR);
+                                // Area value
+                                doc.setFont('helvetica', 'bold');
+                                doc.setTextColor(255, 255, 255);
+                                doc.text(pgAreas[cat].toFixed(1) + ' m\u00B2', tableX + tableW - 5, yR, { align: 'right' });
+                                doc.setFont('helvetica', 'normal');
+                                yR += rowH;
+                            });
+
+                            // Separator line
+                            doc.setDrawColor(100, 100, 100);
+                            doc.setLineWidth(0.2);
+                            doc.line(tableX + 4, yR - 2.5, tableX + tableW - 4, yR - 2.5);
+
+                            // Total row
+                            doc.setFont('helvetica', 'bold');
+                            doc.setFontSize(8.5);
+                            doc.setTextColor(245, 158, 11);
+                            doc.text('TOTALE', tableX + 4, yR + 2);
+                            doc.text(pgTotal.toFixed(1) + ' m\u00B2', tableX + tableW - 5, yR + 2, { align: 'right' });
+                        }
+
+                        // ---- FOOTER (watermark) on EVERY page ----
                         doc.setFillColor(26, 26, 26);
                         doc.rect(0, pdfH, pdfW, footerH, 'F');
                         try {
