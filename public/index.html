@@ -1841,7 +1841,8 @@
             // STATE
             // ============================================================
             const [pratiche, setPratiche] = useState([]);
-            const [utenti, setUtenti] = useState(UTENTI_INIZIALI);
+            const [utenti, setUtenti] = useState([]);
+            const [utentiCaricati, setUtentiCaricati] = useState(false); // Flag per sapere se gli utenti sono stati caricati
             const [schermata, setSchermata] = useState('home');
             const [utenteCorrente, setUtenteCorrente] = useState(null);
             const [usernameInserito, setUsernameInserito] = useState('');
@@ -2081,10 +2082,13 @@
             // ============================================================
             // ⭐ FIREBASE: GESTIONE UTENTI (SOLO SUPER-ADMIN)
             // ============================================================
+            // 🛡️ PROTEZIONE: Mai sovrascrivere utenti Firebase con dati hardcoded!
+            // ============================================================
             useEffect(() => {
                 if (!firebaseInitialized || !db) {
-                    // Fallback a utenti iniziali se Firebase non è configurato
-                    setUtenti(UTENTI_INIZIALI);
+                    // ⚠️ Firebase non disponibile - mostra errore, NON usare utenti hardcoded
+                    console.error('❌ Firebase non inizializzato - impossibile caricare utenti');
+                    setUtentiCaricati(true);
                     return;
                 }
 
@@ -2099,7 +2103,7 @@
                             console.log('📥 Utenti ricevuti da Firebase:', data.utenti?.length || 0);
                             
                             // MIGRAZIONE AUTOMATICA: Converti ID numerici in ID stringa
-                            let utentiMigrati = data.utenti || UTENTI_INIZIALI;
+                            let utentiMigrati = data.utenti || [];
                             let necessitaMigrazione = false;
                             
                             utentiMigrati = utentiMigrati.map(u => {
@@ -2121,18 +2125,23 @@
                             }
                             
                             setUtenti(utentiMigrati);
+                            setUtentiCaricati(true);
                         } else {
-                            // Prima volta: salva gli utenti iniziali su Firebase
-                            console.log('📄 Inizializzazione utenti su Firebase...');
-                            db.collection('utenti').doc('lista').set({
-                                utenti: UTENTI_INIZIALI,
-                                ultimoAggiornamento: firebase.firestore.FieldValue.serverTimestamp()
-                            });
+                            // 🛡️ PROTEZIONE: Documento non esiste (prima installazione assoluta)
+                            // Carica in memoria SENZA scrivere su Firebase automaticamente
+                            console.warn('⚠️ Nessun documento utenti su Firebase. Prima installazione.');
+                            console.warn('⚠️ Utenti iniziali caricati solo in memoria locale.');
+                            console.warn('⚠️ Il super-admin deve salvare dalla gestione utenti per renderli permanenti.');
                             setUtenti(UTENTI_INIZIALI);
+                            setUtentiCaricati(true);
+                            // 🛡️ NON scrivere automaticamente su Firebase!
+                            // Il super-admin dovrà cliccare "Salva" dalla gestione utenti
                         }
                     }, (error) => {
                         console.error('❌ Errore listener Firebase utenti:', error);
-                        setUtenti(UTENTI_INIZIALI);
+                        // 🛡️ PROTEZIONE: Su errore, NON sovrascrivere con utenti di default!
+                        // Mantieni lista vuota - l'utente vedrà un messaggio di errore al login
+                        setUtentiCaricati(true);
                     });
 
                 // Cleanup
@@ -2142,6 +2151,12 @@
             const salvaUtentisuFirebase = async (nuoviUtenti) => {
                 if (!firebaseInitialized || !db) {
                     console.warn('⚠️ Firebase non disponibile per salvare utenti');
+                    return;
+                }
+
+                // 🛡️ PROTEZIONE: Non salvare mai una lista vuota su Firebase
+                if (!nuoviUtenti || nuoviUtenti.length === 0) {
+                    console.error('🛡️ BLOCCATO: tentativo di salvare lista utenti vuota su Firebase!');
                     return;
                 }
 
@@ -2636,6 +2651,15 @@
             // FUNZIONI GESTIONE UTENTE
             // ============================================================
             const handleLogin = async () => {
+                // 🛡️ PROTEZIONE: Non permettere login se utenti non caricati da Firebase
+                if (!utentiCaricati) {
+                    setErroreLogin('⏳ Caricamento in corso... riprova tra un momento');
+                    return;
+                }
+                if (utenti.length === 0) {
+                    setErroreLogin('❌ Errore di connessione al server. Ricarica la pagina.');
+                    return;
+                }
                 const utente = utenti.find(u => u.username === usernameInserito && u.password === passwordInserita);
                 if (utente) {
                     setUtenteCorrente(utente);
