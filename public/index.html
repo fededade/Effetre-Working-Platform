@@ -1832,7 +1832,7 @@
             // ============================================================
             // VERSIONE APP
             // ============================================================
-            const VERSION = "7.17.1 - Gestione Pratiche Manuale";
+            const VERSION = "7.18.0 - Subcollection Migration";
             
             // Logo Effetre Properties (Base64)
             const LOGO_BASE64 = "data:image/jpeg;base64,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D5xGnFI/R7+07T/nsn50f2naf890/Ovzi/4XF4w/6DU/50f8Lh8X/wDQan/Oub/VGq3e50Sz6PY/R3+07T/nsn502XU7XynxMmdp7+1fnJ/wuLxh/wBBqf8AOkPxh8YEYOtTj6Gqp8K1aVRSCpncKkLFj4zTeZ45vMDI3Nz+NcNVi/1C51O4ae6maeZurt1qvX6dhaP1ejGn2Pj61T2s3PuFFFFdRiFOh/18XGfnX+dNoBIIIOCO9ROPPFx7lRfK0z9E/gBqVunw7tFaZUfd0J9q9MGq2v8Az3T86/MnS/if4m0WzFtZ6rNDEDkKDVv/AIXL4x/6Dc4/GvzXFcL1K1VzT0PraObwpwSP0tXVbT/nun507+1rXH+vT86/NFfjN4yH/Mcn/Ol/4XR4y/6Dc/51y/6oT7m39t0z9LRqtn/z3T86k/tezK8zJ+dfmf8A8Lq8Zf8AQbn/ADo/4XV4y/6Dc/50/wDVGp/MH9uQP0xGq2h/5bJ+dOXVLT/nsn51+Zf/AAunxp2124H40v8AwuvxoP8AmPXH50f6o1O/4on+2oM/TZdVtAf9cg/Gn/2tZ/8APdPzr8xv+F1+NO+u3B/Gl/4XX4z/AOg5cfnS/wBUanf8g/tqB+nH9qWX/PdPzp66lZ4z56c+9fmJ/wALs8af9By4/Oj/AIXZ417a9cCn/qlU7j/tqB+no1O0XpOn505dVtCwPnI2OwNfl/8A8Ls8bf8AQeuPzoHxt8cDka/cKfUGojwnVjK9wlnUGj6v/bQ1CG78ByJG4MnmJwK+F04UA+ldL4g+IniHxVbeRqmpzXcWQSHPWucr7/LMA8DT5WfNYzE/WJXCiiivaOAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA//9k=";
@@ -1941,24 +1941,52 @@
             // ============================================================
             const salvasuFirebase = async (nuovePratiche) => {
                 if (!firebaseInitialized || !db) {
-                    // Fallback a localStorage
                     localStorage.setItem('pratiche_effetre', JSON.stringify(nuovePratiche));
                     return;
                 }
 
                 try {
-                    await db.collection('pratiche')
-                        .doc('data')
-                        .set({
-                            pratiche: nuovePratiche,
-                            ultimoAggiornamento: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                    console.log('✅ Pratiche salvate su Firebase');
+                    const collRef = db.collection('pratiche_items');
+
+                    // Recupera gli ID attualmente su Firebase
+                    const snapshot = await collRef.get();
+                    const existingIds = new Set(snapshot.docs.map(doc => doc.id));
+                    const newIds = new Set(nuovePratiche.map(p => String(p.id)));
+
+                    // Firestore batch limit = 500, splittiamo se necessario
+                    let batch = db.batch();
+                    let opCount = 0;
+
+                    const commitBatch = async () => {
+                        if (opCount > 0) {
+                            await batch.commit();
+                            batch = db.batch();
+                            opCount = 0;
+                        }
+                    };
+
+                    // Upsert ogni pratica come documento separato
+                    for (const pratica of nuovePratiche) {
+                        batch.set(collRef.doc(String(pratica.id)), pratica);
+                        opCount++;
+                        if (opCount >= 490) await commitBatch();
+                    }
+
+                    // Cancella pratiche rimosse
+                    for (const id of existingIds) {
+                        if (!newIds.has(id)) {
+                            batch.delete(collRef.doc(id));
+                            opCount++;
+                            if (opCount >= 490) await commitBatch();
+                        }
+                    }
+
+                    await commitBatch();
+                    console.log('✅ Pratiche salvate su Firebase (subcollection, ' + nuovePratiche.length + ' docs)');
                     setFirebaseConnesso(true);
                 } catch (error) {
                     console.error('❌ Errore salvataggio Firebase:', error);
                     setFirebaseConnesso(false);
-                    // Fallback a localStorage
                     localStorage.setItem('pratiche_effetre', JSON.stringify(nuovePratiche));
                 }
             };
@@ -2030,7 +2058,6 @@
             // ============================================================
             useEffect(() => {
                 if (!firebaseInitialized || !db) {
-                    // Fallback a localStorage se Firebase non è configurato
                     const saved = localStorage.getItem('pratiche_effetre');
                     if (saved) {
                         setPratiche(JSON.parse(saved));
@@ -2038,45 +2065,74 @@
                     return;
                 }
 
-                console.log('🔄 Attivazione listener Firebase per pratiche...');
-                
-                // Ascolta i cambiamenti in tempo reale
-                const unsubscribe = db.collection('pratiche')
-                    .doc('data')
-                    .onSnapshot((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            console.log('📥 Dati ricevuti da Firebase:', data.pratiche?.length || 0, 'pratiche');
-                            
-                            // Setta il flag per indicare che l'update viene da Firebase
+                console.log('🔄 Attivazione listener Firebase per pratiche (subcollection)...');
+                let unsubscribeRef = null;
+
+                // MIGRAZIONE AUTOMATICA: controlla se esiste il vecchio documento singolo
+                const migraSeNecessario = async () => {
+                    try {
+                        const oldDoc = await db.collection('pratiche').doc('data').get();
+                        if (oldDoc.exists) {
+                            const oldData = oldDoc.data();
+                            const vecchiePratiche = oldData.pratiche || [];
+                            if (vecchiePratiche.length > 0) {
+                                console.log('🔄 MIGRAZIONE: ' + vecchiePratiche.length + ' pratiche dal vecchio formato...');
+
+                                let batch = db.batch();
+                                let opCount = 0;
+                                const collRef = db.collection('pratiche_items');
+
+                                for (const pratica of vecchiePratiche) {
+                                    batch.set(collRef.doc(String(pratica.id)), pratica);
+                                    opCount++;
+                                    if (opCount >= 490) {
+                                        await batch.commit();
+                                        batch = db.batch();
+                                        opCount = 0;
+                                    }
+                                }
+                                if (opCount > 0) await batch.commit();
+
+                                // Cancella il vecchio documento
+                                await db.collection('pratiche').doc('data').delete();
+                                console.log('✅ MIGRAZIONE completata! Vecchio documento eliminato.');
+                            } else {
+                                // Documento vuoto, eliminalo
+                                await db.collection('pratiche').doc('data').delete();
+                                console.log('🗑️ Vecchio documento vuoto eliminato.');
+                            }
+                        }
+                    } catch (migErr) {
+                        console.warn('⚠️ Errore durante migrazione (non bloccante):', migErr);
+                    }
+                };
+
+                migraSeNecessario().then(() => {
+                    // Listener sulla nuova subcollection
+                    unsubscribeRef = db.collection('pratiche_items')
+                        .onSnapshot((snapshot) => {
+                            const allPratiche = snapshot.docs.map(doc => doc.data());
+                            console.log('📥 Pratiche ricevute da Firebase (subcollection):', allPratiche.length);
+
                             isUpdatingFromFirebase.current = true;
-                            setPratiche(data.pratiche || []);
+                            setPratiche(allPratiche);
                             setFirebaseConnesso(true);
-                            
-                            // Resetta il flag dopo un breve delay
-                            setTimeout(() => {
-                                isUpdatingFromFirebase.current = false;
-                            }, 100);
-                        } else {
-                            console.log('📄 Nessun dato esistente in Firebase');
-                            isUpdatingFromFirebase.current = true;
-                            setPratiche([]);
-                            setTimeout(() => {
-                                isUpdatingFromFirebase.current = false;
-                            }, 100);
-                        }
-                    }, (error) => {
-                        console.error('❌ Errore listener Firebase:', error);
-                        setFirebaseConnesso(false);
-                        // Fallback a localStorage
-                        const saved = localStorage.getItem('pratiche_effetre');
-                        if (saved) {
-                            setPratiche(JSON.parse(saved));
-                        }
-                    });
+
+                            setTimeout(() => { isUpdatingFromFirebase.current = false; }, 100);
+                        }, (error) => {
+                            console.error('❌ Errore listener Firebase:', error);
+                            setFirebaseConnesso(false);
+                            const saved = localStorage.getItem('pratiche_effetre');
+                            if (saved) {
+                                setPratiche(JSON.parse(saved));
+                            }
+                        });
+                });
 
                 // Cleanup
-                return () => unsubscribe();
+                return () => {
+                    if (unsubscribeRef) unsubscribeRef();
+                };
             }, []);
 
             // ============================================================
@@ -2805,31 +2861,39 @@
                 
                 if (confirm('⚠️ ATTENZIONE!\n\nQuesto cancellerà TUTTE le pratiche e i dati salvati.\nL\'operazione NON può essere annullata.\n\nSei sicuro di voler procedere?')) {
                     if (confirm('⚠️ ULTIMA CONFERMA\n\nStai per cancellare tutti i dati in modo permanente.\n\nConfermi la cancellazione?')) {
-                        // Prima cancella da Firebase
+                        // Cancella tutti i documenti dalla subcollection
                         if (firebaseInitialized && db) {
-                            db.collection('pratiche').doc('data').set({
-                                pratiche: [],
-                                ultimoAggiornamento: firebase.firestore.FieldValue.serverTimestamp(),
-                                cancellatoDa: utenteCorrente.nome,
-                                dataCancellazione: new Date().toISOString()
-                            })
-                            .then(() => {
-                                console.log('✅ Dati cancellati da Firebase');
-                                // Poi cancella da localStorage
-                                localStorage.removeItem('pratiche_effetre');
-                                localStorage.removeItem('notifiche_effetre');
-                                setPratiche([]);
-                                setNotifiche({});
-                                alert('✅ Tutti i dati sono stati cancellati.\n\nL\'app è stata resettata.');
-                                // Attendi che il salvataggio sia completato
-                                setTimeout(() => {
-                                    window.location.reload();
-                                }, 1000);
-                            })
-                            .catch((error) => {
-                                console.error('❌ Errore cancellazione Firebase:', error);
-                                alert('❌ Errore durante la cancellazione.\n\nDettagli: ' + error.message);
-                            });
+                            (async () => {
+                                try {
+                                    const snapshot = await db.collection('pratiche_items').get();
+                                    let batch = db.batch();
+                                    let opCount = 0;
+                                    for (const doc of snapshot.docs) {
+                                        batch.delete(doc.ref);
+                                        opCount++;
+                                        if (opCount >= 490) {
+                                            await batch.commit();
+                                            batch = db.batch();
+                                            opCount = 0;
+                                        }
+                                    }
+                                    if (opCount > 0) await batch.commit();
+
+                                    // Cancella anche eventuale vecchio documento singolo
+                                    try { await db.collection('pratiche').doc('data').delete(); } catch(e) {}
+
+                                    console.log('✅ Tutti i documenti pratiche cancellati da Firebase');
+                                    localStorage.removeItem('pratiche_effetre');
+                                    localStorage.removeItem('notifiche_effetre');
+                                    setPratiche([]);
+                                    setNotifiche({});
+                                    alert('✅ Tutti i dati sono stati cancellati.\n\nL\'app è stata resettata.');
+                                    setTimeout(() => { window.location.reload(); }, 1000);
+                                } catch (error) {
+                                    console.error('❌ Errore cancellazione Firebase:', error);
+                                    alert('❌ Errore durante la cancellazione.\n\nDettagli: ' + error.message);
+                                }
+                            })();
                         } else {
                             // Fallback a localStorage
                             localStorage.removeItem('pratiche_effetre');
