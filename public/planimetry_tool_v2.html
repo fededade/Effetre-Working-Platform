@@ -1,0 +1,2425 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prelios - Tool Planimetria v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; overflow: hidden; }
+
+  /* ===== VARIABLES ===== */
+  :root {
+    --bg-dark: #1a1a2e;
+    --bg-panel: #16213e;
+    --bg-card: #1c2a4a;
+    --bg-input: #0f1a30;
+    --gold: #D4AF37;
+    --gold-dim: #a68a2a;
+    --gold-glow: rgba(212,175,55,0.25);
+    --text: #e0e0e0;
+    --text-dim: #8899aa;
+    --text-bright: #ffffff;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --green: #10b981;
+    --orange: #f97316;
+    --purple: #a855f7;
+    --border: #2a3a5c;
+  }
+
+  /* ===== LAYOUT ===== */
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* ===== STEPPER BAR ===== */
+  .stepper-bar {
+    display: flex; align-items: center; justify-content: center; gap: 0;
+    padding: 16px 32px; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+    flex-shrink: 0; z-index: 50;
+  }
+  .step-item {
+    display: flex; align-items: center; cursor: pointer; gap: 10px; padding: 8px 18px;
+    border-radius: 8px; transition: all 0.2s;
+  }
+  .step-item:hover { background: rgba(212,175,55,0.08); }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; border: 2px solid var(--border); color: var(--text-dim);
+    transition: all 0.3s; flex-shrink: 0;
+  }
+  .step-item.active .step-num { background: var(--gold); color: #000; border-color: var(--gold); box-shadow: 0 0 12px var(--gold-glow); }
+  .step-item.completed .step-num { background: var(--green); color: #fff; border-color: var(--green); }
+  .step-label { font-size: 13px; font-weight: 600; color: var(--text-dim); white-space: nowrap; transition: color 0.2s; }
+  .step-item.active .step-label { color: var(--gold); }
+  .step-item.completed .step-label { color: var(--green); }
+  .step-connector { width: 40px; height: 2px; background: var(--border); flex-shrink: 0; }
+  .step-connector.completed { background: var(--green); }
+
+  /* ===== MAIN CONTENT AREA ===== */
+  .main-content { flex: 1; display: flex; overflow: hidden; position: relative; }
+
+  /* ===== STEP PANELS ===== */
+  .step-panel { display: none; width: 100%; height: 100%; overflow: hidden; }
+  .step-panel.active { display: flex; }
+
+  /* ===== STEP 1: UPLOAD ===== */
+  .upload-panel {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 32px; padding: 40px 20px; overflow-y: auto;
+  }
+  .branding-header {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .branding-header img {
+    height: 120px; width: auto; object-fit: contain;
+    filter: drop-shadow(0 4px 12px rgba(212,175,55,0.3));
+  }
+  .branding-header .brand-name {
+    font-size: 32px; font-weight: 300; letter-spacing: 8px; text-transform: uppercase;
+    color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .branding-header .brand-name span {
+    color: var(--gold); font-weight: 600;
+  }
+  .branding-header .tool-title {
+    font-size: 18px; font-weight: 400; letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--gold) 0%, #e8c84a 50%, var(--gold-dim) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .upload-box {
+    width: 600px; padding: 60px 40px; text-align: center;
+    border: 2px dashed var(--border); border-radius: 20px;
+    background: var(--bg-panel); transition: all 0.3s;
+  }
+  .upload-box:hover, .upload-box.dragover {
+    border-color: var(--gold); background: rgba(212,175,55,0.05);
+  }
+  .upload-box h2 { font-size: 28px; color: var(--gold); margin-bottom: 12px; }
+  .upload-box p { color: var(--text-dim); margin-bottom: 30px; font-size: 15px; }
+  .upload-btn {
+    display: inline-block; padding: 14px 40px; background: var(--gold); color: #000;
+    font-weight: 700; font-size: 15px; border: none; border-radius: 10px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .upload-btn:hover { background: #e8c84a; transform: translateY(-1px); box-shadow: 0 4px 20px var(--gold-glow); }
+  #file-input { display: none; }
+  #file-input-add { display: none; }
+  .add-pdf-btn {
+    display: inline-block; padding: 10px 28px; background: var(--bg-card); color: var(--gold);
+    font-weight: 700; font-size: 13px; border: 2px solid var(--gold); border-radius: 10px; cursor: pointer;
+    transition: all 0.2s; margin-top: 16px;
+  }
+  .add-pdf-btn:hover { background: var(--gold); color: #000; }
+
+  /* ===== STEP 2: CANVAS + SIDEBAR ===== */
+  .canvas-layout { display: flex; flex: 1; height: 100%; }
+
+  .canvas-sidebar {
+    width: 340px; background: var(--bg-panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto; flex-shrink: 0;
+  }
+  .sidebar-section { padding: 20px; border-bottom: 1px solid var(--border); }
+  .sidebar-section h3 {
+    display: flex; align-items: center; gap: 10px; font-size: 15px;
+    color: var(--gold); margin-bottom: 14px; font-weight: 700;
+  }
+  .sidebar-section h3 .num {
+    width: 26px; height: 26px; background: var(--gold); color: #000; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;
+  }
+
+  /* Page nav */
+  .page-nav { display: flex; align-items: center; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .page-nav button {
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text); cursor: pointer; font-size: 16px;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .page-nav button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .page-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .page-nav span { font-size: 14px; font-weight: 600; color: var(--text); }
+  .page-label-info { width: 100%; text-align: center; font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+
+  /* Tool buttons */
+  .tool-btn {
+    width: 100%; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text); cursor: pointer;
+    font-size: 13px; font-weight: 600; transition: all 0.2s; margin-bottom: 6px;
+  }
+  .tool-btn:hover { border-color: var(--gold); background: rgba(212,175,55,0.08); }
+  .tool-btn.active { background: var(--gold); color: #000; border-color: var(--gold); }
+  .tool-btn .dot {
+    width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  }
+  .tool-btn .area-badge {
+    margin-left: auto; font-size: 12px; font-family: monospace;
+    padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,0.1);
+  }
+  .tool-btn.active .area-badge { background: rgba(0,0,0,0.15); }
+
+  /* Scale info */
+  .scale-info {
+    margin-top: 8px; padding: 8px 12px; background: var(--bg-input); border-radius: 8px;
+    font-family: monospace; font-size: 12px; color: var(--gold); text-align: center;
+  }
+
+  /* Shapes list */
+  .shape-item {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: var(--bg-input); border-radius: 8px; margin-bottom: 4px; font-size: 13px;
+  }
+  .shape-item .sdot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .shape-item .sname { flex: 1; }
+  .shape-item .sarea { font-family: monospace; color: var(--gold); font-weight: 600; }
+  .shape-item .sdel { background: none; border: none; color: var(--red); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
+  .shape-item .sdel:hover { background: rgba(239,68,68,0.2); }
+
+  /* Totals */
+  .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+  .totals-row .tcat { color: var(--text-dim); }
+  .totals-row .tval { font-family: monospace; font-weight: 700; }
+  .totals-grand {
+    display: flex; justify-content: space-between; padding: 12px 0; margin-top: 8px;
+    border-top: 2px solid var(--gold); font-size: 18px; font-weight: 800;
+  }
+  .totals-grand .tval { color: var(--gold); }
+
+  /* Action buttons */
+  .action-row { display: flex; gap: 8px; margin-top: 12px; }
+  .btn-sm {
+    flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text); cursor: pointer; font-size: 12px;
+    font-weight: 600; transition: all 0.2s; text-align: center;
+  }
+  .btn-sm:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-sm.danger { border-color: var(--red); color: var(--red); }
+  .btn-sm.danger:hover { background: rgba(239,68,68,0.15); }
+
+  /* Canvas area */
+  .canvas-area-wrapper {
+    flex: 1; position: relative; overflow: hidden;
+  }
+  .canvas-area {
+    width: 100%; height: 100%; overflow: auto;
+    background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .canvas-wrapper {
+    min-width: 100%; min-height: 100%; display: flex; padding: 40px;
+  }
+  .canvas-frame {
+    margin: auto; position: relative; background: #222;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden;
+  }
+  #planimetry-canvas { display: block; }
+
+  /* Floating toolbar */
+  .float-toolbar {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 30;
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(22,33,62,0.92); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: 40px; padding: 8px 20px;
+  }
+  .float-toolbar button {
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: transparent; color: var(--text-dim); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+    font-size: 18px;
+  }
+  .float-toolbar button:hover { color: var(--gold); background: rgba(212,175,55,0.1); }
+  .float-toolbar button.active { background: var(--gold); color: #000; }
+  .float-toolbar .sep { width: 1px; height: 24px; background: var(--border); }
+  .float-toolbar .zoom-label { font-size: 13px; font-family: monospace; color: var(--text); width: 50px; text-align: center; font-weight: 700; }
+
+  /* Floating hint */
+  .float-hint {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 30;
+    background: rgba(22,33,62,0.95); border: 1px solid var(--gold); border-radius: 30px;
+    padding: 10px 24px; font-size: 13px; font-weight: 600; color: var(--gold);
+    display: flex; align-items: center; gap: 10px; pointer-events: none;
+    box-shadow: 0 4px 20px var(--gold-glow);
+  }
+  .float-hint .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+
+  /* Calibration modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 36px; width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal-box h3 { color: var(--gold); font-size: 20px; margin-bottom: 6px; }
+  .modal-box p { color: var(--text-dim); font-size: 13px; margin-bottom: 24px; }
+  .modal-box label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); display: block; margin-bottom: 8px; }
+  .modal-box input[type=number] {
+    width: 100%; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text-bright); font-size: 28px; font-weight: 700;
+    font-family: 'Segoe UI', system-ui, sans-serif; outline: none; transition: border-color 0.2s;
+  }
+  .modal-box input[type=number]:focus { border-color: var(--gold); }
+  .modal-box .unit-hint { text-align: right; font-size: 13px; color: var(--text-dim); margin-top: 4px; margin-bottom: 24px; }
+  .modal-actions { display: flex; gap: 12px; justify-content: flex-end; }
+  .modal-actions button {
+    padding: 12px 28px; border-radius: 10px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none; transition: all 0.2s;
+  }
+  .btn-cancel { background: var(--bg-card); color: var(--text-dim); }
+  .btn-cancel:hover { color: var(--text); }
+  .btn-confirm { background: var(--gold); color: #000; }
+  .btn-confirm:hover { background: #e8c84a; }
+
+  /* ===== SPLIT LAYOUT (preview + form) ===== */
+  .split-panel {
+    flex: 1; display: flex; height: 100%; overflow: hidden;
+  }
+  .preview-pane {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: var(--bg-dark); border-right: 1px solid var(--border); position: relative;
+    overflow: auto; padding: 24px;
+    background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .preview-pane img {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+    border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  .preview-pane .preview-label {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(22,33,62,0.9); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 16px; font-size: 12px; font-weight: 700; color: var(--gold);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .preview-pane .no-preview {
+    color: var(--text-dim); font-size: 14px; text-align: center; font-style: italic;
+  }
+  .form-side {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    padding: 40px; overflow-y: auto;
+  }
+
+  /* ===== STEP 3: COMPASS ===== */
+  .form-panel {
+    flex: 1; display: flex; align-items: flex-start; justify-content: center; padding: 40px;
+    overflow-y: auto;
+  }
+  .form-card {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 40px; width: 100%; max-width: 700px;
+  }
+  .form-card h2 { color: var(--gold); font-size: 24px; margin-bottom: 8px; }
+  .form-card .subtitle { color: var(--text-dim); margin-bottom: 30px; font-size: 14px; }
+
+  .compass-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; max-width: 500px; margin: 0 auto 30px;
+  }
+  .compass-btn {
+    padding: 16px; border-radius: 12px; border: 2px solid var(--border);
+    background: var(--bg-card); color: var(--text); cursor: pointer;
+    font-size: 16px; font-weight: 700; text-align: center; transition: all 0.2s;
+  }
+  .compass-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .compass-btn.selected { background: var(--gold); color: #000; border-color: var(--gold); box-shadow: 0 0 20px var(--gold-glow); }
+
+  /* ===== STEP 4: CONFINI ===== */
+  .confini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .confine-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+  }
+  .confine-card h4 { color: var(--gold); font-size: 15px; margin-bottom: 14px; font-weight: 700; }
+  .confine-card label {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
+    font-size: 13px; color: var(--text); cursor: pointer;
+  }
+  .confine-card input[type=checkbox] {
+    width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer;
+  }
+
+  /* ===== STEP 5: DETTAGLI ===== */
+  .detail-group { margin-bottom: 24px; }
+  .detail-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-group select, .detail-group textarea, .detail-group input[type=number] {
+    width: 100%; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-size: 14px; outline: none; font-family: inherit;
+  }
+  .detail-group select:focus, .detail-group textarea:focus, .detail-group input[type=number]:focus { border-color: var(--gold); }
+  .detail-group textarea { resize: vertical; min-height: 80px; }
+  .detail-row { display: flex; gap: 16px; }
+  .detail-row .detail-group { flex: 1; }
+  .detail-section-title {
+    font-size: 16px; font-weight: 700; color: var(--gold); margin: 30px 0 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .checkbox-toggle {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+    cursor: pointer; transition: all 0.2s; font-size: 14px; color: var(--text); margin-bottom: 8px;
+  }
+  .checkbox-toggle:hover { border-color: var(--gold); }
+  .checkbox-toggle.checked { border-color: var(--gold); background: rgba(212,175,55,0.08); }
+  .checkbox-toggle input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0; }
+  .checkbox-toggle.disabled { opacity: 0.4; pointer-events: none; }
+  .radio-group { display: flex; gap: 16px; }
+  .radio-option {
+    flex: 1; padding: 14px 20px; border-radius: 10px; border: 2px solid var(--border);
+    background: var(--bg-card); color: var(--text); cursor: pointer; text-align: center;
+    font-weight: 600; font-size: 14px; transition: all 0.2s;
+  }
+  .radio-option:hover { border-color: var(--gold); }
+  .radio-option.selected { background: var(--gold); color: #000; border-color: var(--gold); }
+
+  /* Composizione appartamento block */
+  .composizione-block {
+    background: rgba(212,175,55,0.06); border: 1px solid rgba(212,175,55,0.25);
+    border-radius: 14px; padding: 24px 20px 16px; margin-top: 8px;
+  }
+  .composizione-block .detail-section-title {
+    margin-top: 0; color: var(--gold);
+  }
+
+  /* Pertinenze block */
+  .pertinenze-block {
+    background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.25);
+    border-radius: 14px; padding: 24px 20px 16px; margin-top: 8px;
+  }
+  .pertinenze-block .detail-section-title {
+    margin-top: 0; color: var(--blue);
+  }
+  .pertinenze-block .checkbox-toggle:hover { border-color: var(--blue); }
+  .pertinenze-block .checkbox-toggle.checked { border-color: var(--blue); background: rgba(59,130,246,0.08); }
+
+  /* ===== STEP 6: RIEPILOGO ===== */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+  .summary-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+  }
+  .summary-card h4 { color: var(--gold); font-size: 14px; font-weight: 700; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row .sr-label { color: var(--text-dim); }
+  .summary-row .sr-value { color: var(--text-bright); font-weight: 600; }
+
+  .json-preview {
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; font-family: 'Consolas', 'Courier New', monospace; font-size: 12px;
+    color: var(--green); max-height: 300px; overflow-y: auto; white-space: pre-wrap;
+    line-height: 1.6; margin-bottom: 20px;
+  }
+
+  .export-row { display: flex; gap: 12px; }
+  .btn-export {
+    flex: 1; padding: 16px; border-radius: 12px; border: none;
+    font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-export.gold { background: var(--gold); color: #000; }
+  .btn-export.gold:hover { background: #e8c84a; box-shadow: 0 4px 20px var(--gold-glow); }
+  .btn-export.outline { background: transparent; border: 2px solid var(--border); color: var(--text); }
+  .btn-export.outline:hover { border-color: var(--gold); color: var(--gold); }
+
+  /* ===== NAV BUTTONS ===== */
+  .nav-buttons { display: flex; gap: 12px; margin-top: 30px; justify-content: flex-end; }
+  .btn-nav {
+    padding: 14px 36px; border-radius: 10px; font-weight: 700; font-size: 14px;
+    cursor: pointer; border: none; transition: all 0.2s;
+  }
+  .btn-nav.prev { background: var(--bg-card); color: var(--text); border: 1px solid var(--border); }
+  .btn-nav.prev:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-nav.next { background: var(--gold); color: #000; }
+  .btn-nav.next:hover { background: #e8c84a; }
+
+  /* ===== SCROLLBAR ===== */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- STEPPER BAR -->
+  <div class="stepper-bar" id="stepper-bar"></div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main-content">
+
+    <!-- STEP 1: Upload PDF -->
+    <div class="step-panel active" id="step-1">
+      <div class="upload-panel">
+        <div class="branding-header">
+          <img src="Logo Effetre.jpg" alt="Effetre Logo">
+          <div class="brand-name"><span>effetre</span> properties</div>
+          <div class="tool-title">Planimetry Tool</div>
+        </div>
+        <div class="upload-box" id="upload-box">
+          <h2>&#128205; Carica Planimetrie</h2>
+          <p>Trascina qui uno o pi&ugrave; PDF / immagini delle planimetrie catastali, oppure clicca per selezionare</p>
+          <button class="upload-btn" onclick="document.getElementById('file-input').click()">Seleziona File</button>
+          <input type="file" id="file-input" accept="application/pdf,image/png,image/jpeg" multiple>
+          <input type="file" id="file-input-add" accept="application/pdf,image/png,image/jpeg" multiple>
+          <div id="loaded-files-info" style="margin-top:20px; font-size:13px; color:var(--text-dim);"></div>
+          <div id="upload-preview" style="display:none; margin-top:20px;"></div>
+          <button class="add-pdf-btn" id="btn-add-more" style="display:none;" onclick="document.getElementById('file-input-add').click()">+ Aggiungi altro PDF</button>
+          <button class="upload-btn" id="btn-proceed-step2" style="display:none; margin-top:16px; background:var(--green); color:#fff;" onclick="goToStep(2)">Procedi al calcolo superfici &#8594;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: Canvas + Calibrazione + Disegno -->
+    <div class="step-panel" id="step-2">
+      <div class="canvas-layout">
+        <!-- Sidebar -->
+        <div class="canvas-sidebar">
+          <!-- Page navigation -->
+          <div class="sidebar-section" id="page-nav-section" style="display:none;">
+            <div class="page-nav">
+              <button onclick="changePage(-1)" id="btn-prev-page">&#9664;</button>
+              <span id="page-indicator">1 / 1</span>
+              <button onclick="changePage(1)" id="btn-next-page">&#9654;</button>
+            </div>
+            <div class="page-label-info" id="page-source-label"></div>
+          </div>
+
+          <!-- Calibrazione -->
+          <div class="sidebar-section">
+            <h3><span class="num">1</span> Calibrazione Scala</h3>
+            <button class="tool-btn" id="btn-scale" onclick="selectTool('scale')">
+              <span style="font-size:18px;">&#128207;</span> Imposta Scala
+              <span class="area-badge" id="scale-badge" style="display:none;">&#10003;</span>
+            </button>
+            <div class="scale-info" id="scale-info" style="display:none;"></div>
+          </div>
+
+          <!-- Categorie -->
+          <div class="sidebar-section">
+            <h3><span class="num">2</span> Disegna Aree</h3>
+            <button class="tool-btn" id="btn-abitazione" onclick="selectTool('abitazione')">
+              <span class="dot" style="background:#ef4444;"></span> Abitazione
+              <span class="area-badge" id="badge-abitazione" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-balconi" onclick="selectTool('balconi')">
+              <span class="dot" style="background:#3b82f6;"></span> Balconi
+              <span class="area-badge" id="badge-balconi" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-cantina" onclick="selectTool('cantina')">
+              <span class="dot" style="background:#10b981;"></span> Cantina
+              <span class="area-badge" id="badge-cantina" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-box_auto" onclick="selectTool('box_auto')">
+              <span class="dot" style="background:#f97316;"></span> Box auto
+              <span class="area-badge" id="badge-box_auto" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-giardino" onclick="selectTool('giardino')">
+              <span class="dot" style="background:#22c55e;"></span> Giardino
+              <span class="area-badge" id="badge-giardino" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-sottotetto" onclick="selectTool('sottotetto')">
+              <span class="dot" style="background:#a855f7;"></span> Sottotetto
+              <span class="area-badge" id="badge-sottotetto" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-mansarda" onclick="selectTool('mansarda')">
+              <span class="dot" style="background:#ec4899;"></span> Mansarda
+              <span class="area-badge" id="badge-mansarda" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-ripostiglio" onclick="selectTool('ripostiglio')">
+              <span class="dot" style="background:#eab308;"></span> Ripostiglio
+              <span class="area-badge" id="badge-ripostiglio" style="display:none;"></span>
+            </button>
+            <button class="tool-btn" id="btn-portico" onclick="selectTool('portico')">
+              <span class="dot" style="background:#14b8a6;"></span> Portico
+              <span class="area-badge" id="badge-portico" style="display:none;"></span>
+            </button>
+          </div>
+
+          <!-- Shapes list -->
+          <div class="sidebar-section" id="shapes-section" style="display:none;">
+            <h3><span class="num">3</span> Poligoni Disegnati</h3>
+            <div id="shapes-list"></div>
+          </div>
+
+          <!-- Totals -->
+          <div class="sidebar-section">
+            <h3>Superfici (pagina corrente)</h3>
+            <div id="totals-container"></div>
+            <div class="totals-grand"><span>TOTALE pagina</span><span class="tval" id="tot-grand">0.0 m&sup2;</span></div>
+            <div class="action-row">
+              <button class="btn-sm" onclick="undoAction()">&#8630; Annulla</button>
+              <button class="btn-sm danger" onclick="resetAll()">&#128465; Reset</button>
+            </div>
+          </div>
+
+          <!-- Next step -->
+          <div class="sidebar-section" style="border-bottom:none;">
+            <button class="btn-nav next" style="width:100%;" onclick="goToStep(3)">Prosegui &#8594;</button>
+          </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="canvas-area-wrapper">
+          <div class="canvas-area" id="canvas-area">
+            <div class="canvas-wrapper">
+              <div class="canvas-frame" id="canvas-frame">
+                <canvas id="planimetry-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Floating hint (outside scrollable area) -->
+          <div class="float-hint" id="float-hint" style="display:none;">
+            <span class="pulse"></span>
+            <span id="hint-text"></span>
+          </div>
+
+          <!-- Floating toolbar (outside scrollable area) -->
+          <div class="float-toolbar">
+            <button id="btn-pan" onclick="selectTool('pan')" title="Sposta">&#9995;</button>
+            <span class="sep"></span>
+            <button onclick="changeZoom(-0.15)" title="Zoom -">&#128270;-</button>
+            <span class="zoom-label" id="zoom-label">100%</span>
+            <button onclick="changeZoom(0.15)" title="Zoom +">&#128270;+</button>
+            <span class="sep"></span>
+            <button onclick="fitToScreen()" title="Adatta">&#11036;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Nord -->
+    <div class="step-panel" id="step-3">
+      <div class="split-panel">
+        <div class="preview-pane">
+          <span class="preview-label">Planimetria</span>
+          <img id="preview-img-step3" src="" alt="Anteprima planimetria" style="display:none;">
+          <span class="no-preview" id="no-preview-3">Nessuna planimetria caricata</span>
+        </div>
+        <div class="form-side">
+          <div class="form-card">
+            <h2>&#129517; Indicazione del Nord</h2>
+            <p class="subtitle">Seleziona la direzione del Nord rispetto alla planimetria visibile a sinistra</p>
+            <div class="compass-grid" id="compass-grid"></div>
+            <div class="nav-buttons">
+              <button class="btn-nav prev" onclick="goToStep(2)">&#8592; Indietro</button>
+              <button class="btn-nav next" onclick="goToStep(4)">Prosegui &#8594;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4: Confini -->
+    <div class="step-panel" id="step-4">
+      <div class="split-panel">
+        <div class="preview-pane">
+          <span class="preview-label">Planimetria</span>
+          <img id="preview-img-step4" src="" alt="Anteprima planimetria" style="display:none;">
+          <span class="no-preview" id="no-preview-4">Nessuna planimetria caricata</span>
+        </div>
+        <div class="form-side">
+          <div class="form-card" style="max-width:900px;">
+            <h2>&#127968; Confini</h2>
+            <p class="subtitle">Osserva la planimetria a sinistra e indica i confini per ciascun lato</p>
+            <div class="confini-grid" id="confini-grid"></div>
+            <div class="nav-buttons">
+              <button class="btn-nav prev" onclick="goToStep(3)">&#8592; Indietro</button>
+              <button class="btn-nav next" onclick="goToStep(5)">Prosegui &#8594;</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 5: Dettagli -->
+    <div class="step-panel" id="step-5">
+      <div class="form-panel">
+        <div class="form-card">
+          <h2>&#128196; Dettagli Immobile</h2>
+          <p class="subtitle">Informazioni aggiuntive sulla propriet&agrave;</p>
+
+          <div class="detail-group">
+            <label>Tipologia</label>
+            <select id="tipologia">
+              <option value="">-- Seleziona --</option>
+              <option value="Appartamento">Appartamento</option>
+              <option value="Villetta singola">Villetta singola</option>
+              <option value="Villetta a schiera">Villetta a schiera</option>
+            </select>
+          </div>
+
+          <div class="detail-group">
+            <label>Ascensore</label>
+            <div class="radio-group">
+              <div class="radio-option" onclick="selectRadio(this,'ascensore','Si')" data-field="ascensore">S&igrave;</div>
+              <div class="radio-option" onclick="selectRadio(this,'ascensore','No')" data-field="ascensore">No</div>
+            </div>
+          </div>
+
+          <div class="detail-group">
+            <label>Ristrutturazioni Recenti</label>
+            <div class="radio-group">
+              <div class="radio-option" onclick="selectRadio(this,'ristrutturazione','Si')" data-field="ristrutturazione">S&igrave;</div>
+              <div class="radio-option" onclick="selectRadio(this,'ristrutturazione','No')" data-field="ristrutturazione">No</div>
+            </div>
+          </div>
+
+          <div class="detail-group" id="ristrutturazione-desc-group" style="display:none;">
+            <label>Descrizione Ristrutturazione</label>
+            <textarea id="ristrutturazione-desc" placeholder="Descrivi le ristrutturazioni effettuate..."></textarea>
+          </div>
+
+          <!-- Piani del fabbricato -->
+          <div class="detail-section-title">Piani del Fabbricato</div>
+          <div class="detail-row">
+            <div class="detail-group">
+              <label>Piani fuori terra</label>
+              <input type="number" id="piani-fuori-terra" min="1" max="10" value="1">
+            </div>
+            <div class="detail-group">
+              <label>Piani entroterra</label>
+              <input type="number" id="piani-entroterra" min="0" max="5" value="0">
+            </div>
+          </div>
+
+          <!-- Composizione appartamento -->
+          <div class="composizione-block">
+            <div class="detail-section-title">Composizione dell'Appartamento</div>
+
+            <div class="detail-group">
+              <label>Ingresso</label>
+              <div class="radio-group">
+                <div class="radio-option" onclick="selectRadio(this,'ingresso','Ingresso su disimpegno')" data-field="ingresso">Su disimpegno</div>
+                <div class="radio-option" onclick="selectRadio(this,'ingresso','Ingresso su soggiorno')" data-field="ingresso">Su soggiorno</div>
+              </div>
+            </div>
+
+            <div class="detail-group">
+              <label>Soggiorno</label>
+              <div class="radio-group">
+                <div class="radio-option" onclick="selectRadio(this,'soggiorno','Si')" data-field="soggiorno">S&igrave;</div>
+                <div class="radio-option" onclick="selectRadio(this,'soggiorno','No')" data-field="soggiorno">No</div>
+              </div>
+            </div>
+
+            <div class="detail-group">
+              <label>Cucina / Angolo cottura</label>
+              <label class="checkbox-toggle" id="toggle-cucina" onclick="toggleCucina('cucina_abitabile')">
+                <input type="checkbox" id="chk-cucina-abitabile"> Cucina abitabile
+              </label>
+              <label class="checkbox-toggle" id="toggle-angolo" onclick="toggleCucina('angolo_cottura')">
+                <input type="checkbox" id="chk-angolo-cottura"> Soggiorno con angolo cottura
+              </label>
+              <label class="checkbox-toggle" id="toggle-angolo-extra" onclick="toggleAngoloExtra()">
+                <input type="checkbox" id="chk-angolo-cottura-extra"> Angolo cottura
+              </label>
+            </div>
+
+            <div class="detail-group">
+              <label>Numero camere</label>
+              <div class="radio-group" style="flex-wrap:wrap;">
+                <div class="radio-option" onclick="selectRadio(this,'num_camere','1')" data-field="num_camere">1</div>
+                <div class="radio-option" onclick="selectRadio(this,'num_camere','2')" data-field="num_camere">2</div>
+                <div class="radio-option" onclick="selectRadio(this,'num_camere','3')" data-field="num_camere">3</div>
+                <div class="radio-option" onclick="selectRadio(this,'num_camere','4')" data-field="num_camere">4</div>
+                <div class="radio-option" onclick="selectRadio(this,'num_camere','5')" data-field="num_camere">5</div>
+                <div class="radio-option" onclick="selectRadio(this,'num_camere','6')" data-field="num_camere">6</div>
+              </div>
+              <div id="distribuzione-camere" style="display:none; margin-top:12px;"></div>
+            </div>
+
+            <div class="detail-group">
+              <label>Numero servizi igienici</label>
+              <select id="num-servizi-igienici">
+                <option value="">-- Seleziona --</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+              </select>
+              <div id="distribuzione-servizi" style="display:none; margin-top:12px;"></div>
+            </div>
+          </div>
+
+          <!-- Pertinenze -->
+          <div class="pertinenze-block">
+            <div class="detail-section-title">Pertinenze</div>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'cantina')">
+              <input type="checkbox" id="chk-cantina"> Cantina
+            </label>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'solaio')">
+              <input type="checkbox" id="chk-solaio"> Solaio
+            </label>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'ripostiglio')">
+              <input type="checkbox" id="chk-ripostiglio"> Ripostiglio
+            </label>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'box_auto')">
+              <input type="checkbox" id="chk-box-auto"> Box auto
+            </label>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'giardino')">
+              <input type="checkbox" id="chk-giardino"> Giardino
+            </label>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'sottotetto')">
+              <input type="checkbox" id="chk-sottotetto"> Sottotetto
+            </label>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'mansarda')">
+              <input type="checkbox" id="chk-mansarda"> Mansarda
+            </label>
+            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'corte_esclusiva')">
+              <input type="checkbox" id="chk-corte-esclusiva"> Corte esclusiva
+            </label>
+          </div>
+
+          <div class="nav-buttons">
+            <button class="btn-nav prev" onclick="goToStep(4)">&#8592; Indietro</button>
+            <button class="btn-nav next" onclick="goToStep(6)">Prosegui &#8594;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 6: Riepilogo -->
+    <div class="step-panel" id="step-6">
+      <div class="form-panel" style="align-items:flex-start; overflow-y:auto;">
+        <div class="form-card" style="max-width:900px; margin:20px auto;">
+          <h2>&#128203; Riepilogo & Output</h2>
+          <p class="subtitle">Verifica i dati raccolti e esporta</p>
+
+          <div class="summary-grid" id="summary-grid"></div>
+
+          <h4 style="color:var(--gold); margin-bottom:12px;">Preview JSON</h4>
+          <div class="json-preview" id="json-preview"></div>
+
+          <div class="export-row">
+            <button class="btn-export gold" onclick="exportJSON()">&#128190; Esporta JSON</button>
+            <button class="btn-export outline" onclick="exportPlanimetryPDF()">&#128196; Scarica planimetria con superfici</button>
+          </div>
+
+          <div class="nav-buttons">
+            <button class="btn-nav prev" onclick="goToStep(5)">&#8592; Indietro</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /app -->
+
+<!-- CALIBRATION MODAL -->
+<div class="modal-overlay hidden" id="calibration-modal">
+  <div class="modal-box">
+    <h3>&#128207; Calibrazione Scala</h3>
+    <p>Inserisci la lunghezza reale del segmento tracciato</p>
+    <label>Lunghezza Reale</label>
+    <input type="number" id="cal-length" value="10" min="0.01" step="0.01">
+    <div class="unit-hint">metri</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="cancelCalibration()">Annulla</button>
+      <button class="btn-confirm" onclick="confirmCalibration()">Applica Scala</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIANO MODAL -->
+<div class="modal-overlay hidden" id="piano-modal">
+  <div class="modal-box">
+    <h3>&#127970; Seleziona Piano</h3>
+    <p>A quale piano si riferisce l'area appena disegnata?</p>
+    <label>Piano</label>
+    <select id="piano-select" style="width:100%; padding:12px 16px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; color:var(--text-bright); font-size:16px; font-weight:600; outline:none; margin-bottom:8px;">
+      <option value="Piano seminterrato">Piano seminterrato</option>
+      <option value="Piano terra">Piano terra</option>
+      <option value="Piano primo" selected>Piano primo</option>
+      <option value="Piano secondo">Piano secondo</option>
+      <option value="Piano terzo">Piano terzo</option>
+      <option value="Piano quarto">Piano quarto</option>
+      <option value="Piano quinto">Piano quinto</option>
+      <option value="Piano sesto">Piano sesto</option>
+      <option value="Piano settimo">Piano settimo</option>
+      <option value="Piano ottavo">Piano ottavo</option>
+      <option value="Piano nono">Piano nono</option>
+      <option value="Piano decimo">Piano decimo</option>
+      <option value="Sottotetto">Sottotetto</option>
+      <option value="__custom__">Altro (inserisci manualmente)</option>
+    </select>
+    <input type="text" id="piano-custom" placeholder="Es. Piano undicesimo" style="display:none; width:100%; padding:12px 16px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; color:var(--text-bright); font-size:16px; font-weight:600; outline:none; margin-top:8px;">
+    <div class="modal-actions" style="margin-top:24px;">
+      <button class="btn-cancel" onclick="cancelPianoModal()">Annulla</button>
+      <button class="btn-confirm" onclick="confirmPianoModal()">Conferma</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// STATE
+// ==========================================
+const STEPS = [
+  { id: 1, label: 'Caricamento PDF' },
+  { id: 2, label: 'Calibrazione & Superfici' },
+  { id: 3, label: 'Indicazione Nord' },
+  { id: 4, label: 'Confini' },
+  { id: 5, label: 'Dettagli Immobile' },
+  { id: 6, label: 'Riepilogo & Output' }
+];
+
+const CATEGORIES = {
+  abitazione:   { label: 'Abitazione',   fill: 'rgba(239,68,68,0.25)',   stroke: '#ef4444' },
+  balconi:      { label: 'Balconi',      fill: 'rgba(59,130,246,0.25)',  stroke: '#3b82f6' },
+  cantina:      { label: 'Cantina',      fill: 'rgba(16,185,129,0.25)',  stroke: '#10b981' },
+  box_auto:     { label: 'Box auto',     fill: 'rgba(249,115,22,0.25)', stroke: '#f97316' },
+  giardino:     { label: 'Giardino',     fill: 'rgba(34,197,94,0.25)',   stroke: '#22c55e' },
+  sottotetto:   { label: 'Sottotetto',   fill: 'rgba(168,85,247,0.25)', stroke: '#a855f7' },
+  mansarda:     { label: 'Mansarda',     fill: 'rgba(236,72,153,0.25)', stroke: '#ec4899' },
+  ripostiglio:  { label: 'Ripostiglio',  fill: 'rgba(234,179,8,0.25)',  stroke: '#eab308' },
+  portico:      { label: 'Portico',      fill: 'rgba(20,184,166,0.25)', stroke: '#14b8a6' }
+};
+
+const COMPASS_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+const CONFINI_LATI = ['Nord', 'Est', 'Sud', 'Ovest'];
+const CONFINI_OPTIONS = [
+  'Altra u.i.', 'Affaccio su corte comune', 'Affaccio su pubblica via',
+  'Corpo scala comune', 'Passaggio comune', 'Affaccio su corte esclusiva'
+];
+
+let currentStep = 1;
+let totalPages = 0;
+let currentPage = 0;
+
+// Multi-source page system: each entry = { type:'pdf'|'image', pdfDoc, pdfPageNum, imageUrl, fileName }
+let allPageSources = [];
+
+// Per-page persistent state: pageStates[pageIndex] = { shapes, scalePPM, shapeIdCounter, currentPoints }
+let pageStates = {};
+
+// Canvas state (current page working state)
+const canvas = document.getElementById('planimetry-canvas');
+const ctx = canvas.getContext('2d');
+let bgImage = null;
+
+let currentTool = null;
+let scalePPM = null;
+let scalePoints = [];
+let shapes = [];
+let currentPoints = [];
+let mousePos = null;
+let shapeIdCounter = 0;
+let pendingShape = null;
+
+// Zoom & Pan
+let zoomLevel = 1.0;
+let isPanning = false;
+let panStart = { x: 0, y: 0, sl: 0, st: 0 };
+
+// Form state
+let selectedNord = '';
+let confiniData = {};
+let dettagliData = {
+  tipologia: '', ascensore: '', ristrutturazione: '', ristrutturazione_desc: '',
+  piani_fuori_terra: 1, piani_entroterra: 0,
+  num_camere: '', soggiorno: '', cucina_abitabile: false, angolo_cottura: false,
+  angolo_cottura_extra: false, ingresso: ''
+};
+
+// ==========================================
+// PER-PAGE STATE SAVE / LOAD
+// ==========================================
+function savePageState() {
+  pageStates[currentPage] = {
+    shapes: JSON.parse(JSON.stringify(shapes)),
+    scalePPM: scalePPM,
+    shapeIdCounter: shapeIdCounter,
+    currentPoints: JSON.parse(JSON.stringify(currentPoints))
+  };
+}
+
+function loadPageState(pageIndex) {
+  const ps = pageStates[pageIndex];
+  if (ps) {
+    shapes = JSON.parse(JSON.stringify(ps.shapes));
+    scalePPM = ps.scalePPM;
+    shapeIdCounter = ps.shapeIdCounter;
+    currentPoints = JSON.parse(JSON.stringify(ps.currentPoints));
+  } else {
+    shapes = [];
+    scalePPM = null;
+    shapeIdCounter = 0;
+    currentPoints = [];
+  }
+  mousePos = null;
+  currentTool = null;
+  document.querySelectorAll('.tool-btn, .float-toolbar button').forEach(b => b.classList.remove('active'));
+  hideHint();
+
+  // Update scale UI
+  if (scalePPM) {
+    document.getElementById('scale-info').style.display = '';
+    document.getElementById('scale-info').textContent = '1 m = ' + scalePPM.toFixed(2) + ' px  |  Scala: 1:' + Math.round(scalePPM);
+    document.getElementById('scale-badge').style.display = '';
+  } else {
+    document.getElementById('scale-info').style.display = 'none';
+    document.getElementById('scale-badge').style.display = 'none';
+  }
+  updateTotals();
+  renderShapesList();
+}
+
+// ==========================================
+// AGGREGATE TOTALS ACROSS ALL PAGES
+// ==========================================
+function calcPolygonAreaWithScale(points, ppm) {
+  if (!ppm || points.length < 3) return 0;
+  let area = 0;
+  let j = points.length - 1;
+  for (let i = 0; i < points.length; i++) {
+    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
+    j = i;
+  }
+  return Math.abs(area / 2) / (ppm * ppm);
+}
+
+function getGlobalCategoryTotals() {
+  // Save current page first
+  savePageState();
+  const tots = {};
+  Object.keys(CATEGORIES).forEach(k => tots[k] = 0);
+  for (let i = 0; i < totalPages; i++) {
+    const ps = pageStates[i];
+    if (ps && ps.shapes.length > 0 && ps.scalePPM) {
+      ps.shapes.forEach(s => {
+        if (tots[s.type] !== undefined) {
+          tots[s.type] += calcPolygonAreaWithScale(s.points, ps.scalePPM);
+        }
+      });
+    }
+  }
+  return tots;
+}
+
+function getAllShapesFlat() {
+  savePageState();
+  const result = [];
+  for (let i = 0; i < totalPages; i++) {
+    const ps = pageStates[i];
+    if (ps && ps.shapes.length > 0 && ps.scalePPM) {
+      ps.shapes.forEach(s => {
+        const src = allPageSources[i];
+        result.push({
+          ...s,
+          piano: s.piano || '',
+          area_mq: calcPolygonAreaWithScale(s.points, ps.scalePPM),
+          page: i,
+          pageLabel: src ? src.fileName : ('Pagina ' + (i + 1))
+        });
+      });
+    }
+  }
+  return result;
+}
+
+// ==========================================
+// STEPPER
+// ==========================================
+function renderStepper() {
+  const bar = document.getElementById('stepper-bar');
+  bar.innerHTML = '';
+  STEPS.forEach((step, i) => {
+    const item = document.createElement('div');
+    item.className = 'step-item' + (step.id === currentStep ? ' active' : '') + (step.id < currentStep ? ' completed' : '');
+    item.onclick = () => goToStep(step.id);
+    item.innerHTML = '<span class="step-num">' + (step.id < currentStep ? '&#10003;' : step.id) + '</span><span class="step-label">' + step.label + '</span>';
+    bar.appendChild(item);
+    if (i < STEPS.length - 1) {
+      const conn = document.createElement('div');
+      conn.className = 'step-connector' + (step.id < currentStep ? ' completed' : '');
+      bar.appendChild(conn);
+    }
+  });
+}
+
+function goToStep(n) {
+  if (n < 1 || n > 6) return;
+
+  // Save current page state when leaving step 2
+  if (currentStep === 2) {
+    savePageState();
+  }
+
+  // Capture preview snapshot from canvas before leaving step 2
+  if ((n === 3 || n === 4) && canvas.width > 0 && canvas.height > 0) {
+    updatePreviewImages();
+  }
+
+  document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('step-' + n).classList.add('active');
+  currentStep = n;
+  renderStepper();
+  if (n === 5) initStep5MultiLevel();
+  if (n === 6) buildSummary();
+}
+
+function updatePreviewImages() {
+  try {
+    const dataUrl = canvas.toDataURL('image/png');
+    [3, 4].forEach(step => {
+      const img = document.getElementById('preview-img-step' + step);
+      const noPreview = document.getElementById('no-preview-' + step);
+      if (img && dataUrl) {
+        img.src = dataUrl;
+        img.style.display = '';
+        if (noPreview) noPreview.style.display = 'none';
+      }
+    });
+  } catch(e) { /* canvas tainted or empty, ignore */ }
+}
+
+// ==========================================
+// STEP 1: FILE UPLOAD & PDF RENDERING (MULTI-PDF)
+// ==========================================
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+const uploadBox = document.getElementById('upload-box');
+const fileInput = document.getElementById('file-input');
+const fileInputAdd = document.getElementById('file-input-add');
+
+uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.classList.add('dragover'); });
+uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+uploadBox.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadBox.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length > 0) handleFiles(e.target.files); });
+fileInputAdd.addEventListener('change', e => { if (e.target.files.length > 0) handleFiles(e.target.files); });
+
+async function handleFiles(files) {
+  for (let f = 0; f < files.length; f++) {
+    await addFileToPages(files[f]);
+  }
+
+  totalPages = allPageSources.length;
+
+  // If first load, go to first page
+  if (currentPage >= totalPages) currentPage = 0;
+
+  // Show page nav if multi-page
+  if (totalPages > 1) {
+    document.getElementById('page-nav-section').style.display = '';
+  } else {
+    document.getElementById('page-nav-section').style.display = 'none';
+  }
+
+  // Show "add more" button
+  document.getElementById('btn-add-more').style.display = '';
+
+  // Update loaded files info
+  updateLoadedFilesInfo();
+
+  // Render current page
+  await renderPageByIndex(currentPage);
+  updatePageIndicator();
+
+  if (currentStep === 1) {
+    fitToScreen();
+    // Show preview thumbnail and proceed button (don't auto-advance)
+    updateUploadPreview();
+  }
+}
+
+async function addFileToPages(file) {
+  if (!file) return;
+
+  if (file.type === 'application/pdf') {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdfDoc.numPages;
+    for (let p = 1; p <= numPages; p++) {
+      allPageSources.push({
+        type: 'pdf',
+        pdfDoc: pdfDoc,
+        pdfPageNum: p,
+        imageUrl: null,
+        fileName: file.name + (numPages > 1 ? ' (pag. ' + p + ')' : '')
+      });
+    }
+  } else if (file.type.startsWith('image/')) {
+    const url = URL.createObjectURL(file);
+    allPageSources.push({
+      type: 'image',
+      pdfDoc: null,
+      pdfPageNum: null,
+      imageUrl: url,
+      fileName: file.name
+    });
+  }
+}
+
+function updateUploadPreview() {
+  // Generate a thumbnail from the current canvas
+  const thumbUrl = canvas.toDataURL('image/png');
+  const preview = document.getElementById('upload-preview');
+  const proceedBtn = document.getElementById('btn-proceed-step2');
+  preview.innerHTML = '<img src="' + thumbUrl + '" alt="Anteprima" style="max-width:100%;max-height:180px;border-radius:10px;border:1px solid var(--border);box-shadow:0 4px 16px rgba(0,0,0,0.3);">';
+  preview.style.display = '';
+  proceedBtn.style.display = '';
+}
+
+function updateLoadedFilesInfo() {
+  const info = document.getElementById('loaded-files-info');
+  // Collect unique file names
+  const fileNames = [];
+  const seen = new Set();
+  allPageSources.forEach(src => {
+    const baseName = src.fileName.replace(/ \(pag\. \d+\)$/, '');
+    if (!seen.has(baseName)) {
+      seen.add(baseName);
+      fileNames.push(baseName);
+    }
+  });
+  info.innerHTML = '<strong>' + totalPages + '</strong> pagine caricate da <strong>' + fileNames.length + '</strong> file: ' + fileNames.join(', ');
+}
+
+async function renderPageByIndex(pageIndex) {
+  if (pageIndex < 0 || pageIndex >= allPageSources.length) return;
+  const src = allPageSources[pageIndex];
+
+  if (src.type === 'pdf') {
+    const page = await src.pdfDoc.getPage(src.pdfPageNum);
+    const scale = 2.0;
+    const viewport = page.getViewport({ scale });
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    const renderCtx = canvas.getContext('2d');
+    await page.render({ canvasContext: renderCtx, viewport }).promise;
+
+    // Save as image for redraw overlay
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
+    await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        bgImage = img;
+        redrawCanvas();
+        resolve();
+      };
+      img.onerror = () => resolve();
+      img.src = tempCanvas.toDataURL();
+    });
+
+  } else if (src.type === 'image') {
+    await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        bgImage = img;
+        redrawCanvas();
+        resolve();
+      };
+      img.onerror = () => resolve();
+      img.src = src.imageUrl;
+    });
+  }
+}
+
+async function changePage(delta) {
+  const newPage = currentPage + delta;
+  if (newPage < 0 || newPage >= totalPages) return;
+
+  // Save current page state
+  savePageState();
+
+  // Switch page
+  currentPage = newPage;
+
+  // Load new page state
+  loadPageState(currentPage);
+
+  // Render new page background
+  await renderPageByIndex(currentPage);
+  updatePageIndicator();
+}
+
+function updatePageIndicator() {
+  document.getElementById('page-indicator').textContent = (currentPage + 1) + ' / ' + totalPages;
+  document.getElementById('btn-prev-page').disabled = currentPage === 0;
+  document.getElementById('btn-next-page').disabled = currentPage === totalPages - 1;
+
+  // Update source label
+  const src = allPageSources[currentPage];
+  const labelEl = document.getElementById('page-source-label');
+  if (src && labelEl) {
+    labelEl.textContent = src.fileName;
+  }
+}
+
+// ==========================================
+// STEP 2: CANVAS DRAWING ENGINE
+// ==========================================
+
+function selectTool(tool) {
+  // Deactivate all
+  document.querySelectorAll('.tool-btn, .float-toolbar button').forEach(b => b.classList.remove('active'));
+  currentPoints = [];
+  mousePos = null;
+
+  if (currentTool === tool) {
+    currentTool = null;
+    hideHint();
+    redrawCanvas();
+    return;
+  }
+
+  currentTool = tool;
+
+  // Activate button
+  const btnId = tool === 'pan' ? 'btn-pan' : 'btn-' + tool;
+  const btn = document.getElementById(btnId);
+  if (btn) btn.classList.add('active');
+
+  // Hints
+  if (tool === 'scale') {
+    scalePoints = [];
+    showHint('Traccia una linea su un elemento di misura nota. Shift = linee ortogonali.');
+  } else if (tool === 'pan') {
+    showHint('Trascina per spostare la mappa');
+  } else {
+    showHint('Clicca per posizionare i vertici. Shift = linee ortogonali. Doppio click per chiudere.');
+  }
+
+  redrawCanvas();
+}
+
+function showHint(text) {
+  const h = document.getElementById('float-hint');
+  document.getElementById('hint-text').textContent = text;
+  h.style.display = 'flex';
+}
+function hideHint() {
+  document.getElementById('float-hint').style.display = 'none';
+}
+
+// --- Canvas coordinate conversion ---
+function getCanvasCoords(e) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * sx,
+    y: (e.clientY - rect.top) * sy
+  };
+}
+
+// Snap to orthogonal (H/V) relative to last point when Shift is held
+function snapOrtho(coords, refPoint) {
+  if (!refPoint) return coords;
+  const dx = Math.abs(coords.x - refPoint.x);
+  const dy = Math.abs(coords.y - refPoint.y);
+  if (dx >= dy) {
+    return { x: coords.x, y: refPoint.y }; // horizontal
+  } else {
+    return { x: refPoint.x, y: coords.y }; // vertical
+  }
+}
+
+function getLastAnchor() {
+  // For polygon tools, last point in currentPoints
+  if (currentTool && currentTool !== 'scale' && currentTool !== 'pan' && currentPoints.length > 0) {
+    return currentPoints[currentPoints.length - 1];
+  }
+  // For scale tool, first scale point
+  if (currentTool === 'scale' && scalePoints.length === 1) {
+    return scalePoints[0];
+  }
+  return null;
+}
+
+// --- Canvas events ---
+canvas.addEventListener('mousedown', function(e) {
+  if (e.button !== 0) return; // only left button triggers drawing
+  if (currentTool === 'pan' || !currentTool) return;
+  let coords = getCanvasCoords(e);
+
+  // Apply ortho snap with Shift
+  if (e.shiftKey) {
+    const anchor = getLastAnchor();
+    if (anchor) coords = snapOrtho(coords, anchor);
+  }
+
+  if (currentTool === 'scale') {
+    scalePoints.push(coords);
+    if (scalePoints.length === 2) {
+      // Reset cal-length to default 10 each time the modal opens
+      document.getElementById('cal-length').value = 10;
+      document.getElementById('calibration-modal').classList.remove('hidden');
+    }
+    redrawCanvas();
+  } else {
+    currentPoints.push(coords);
+    redrawCanvas();
+  }
+});
+
+canvas.addEventListener('mousemove', function(e) {
+  if (!currentTool || currentTool === 'pan') return;
+  let coords = getCanvasCoords(e);
+
+  // Apply ortho snap with Shift
+  if (e.shiftKey) {
+    const anchor = getLastAnchor();
+    if (anchor) coords = snapOrtho(coords, anchor);
+  }
+
+  mousePos = coords;
+  redrawCanvas();
+});
+
+canvas.addEventListener('dblclick', function(e) {
+  if (!currentTool || currentTool === 'scale' || currentTool === 'pan') return;
+  if (currentPoints.length < 3) return;
+
+  // Remove the extra point added by the second click of dblclick
+  if (currentPoints.length > 3) {
+    const last = currentPoints[currentPoints.length - 1];
+    const prev = currentPoints[currentPoints.length - 2];
+    const dist = Math.hypot(last.x - prev.x, last.y - prev.y);
+    if (dist < 20) currentPoints.pop();
+  }
+
+  // Save as pending shape and show piano modal
+  pendingShape = {
+    id: ++shapeIdCounter,
+    type: currentTool,
+    points: [...currentPoints],
+    piano: ''
+  };
+  currentPoints = [];
+  mousePos = null;
+
+  // Show piano modal
+  document.getElementById('piano-select').value = 'Piano primo';
+  document.getElementById('piano-custom').style.display = 'none';
+  document.getElementById('piano-custom').value = '';
+  document.getElementById('piano-modal').classList.remove('hidden');
+});
+
+// Pan handling on canvas-area
+const canvasArea = document.getElementById('canvas-area');
+
+canvasArea.addEventListener('mousedown', function(e) {
+  // Middle mouse button (rotellina) always triggers pan, regardless of active tool
+  if (e.button === 1) {
+    e.preventDefault();
+    isPanning = true;
+    panStart = { x: e.clientX, y: e.clientY, sl: canvasArea.scrollLeft, st: canvasArea.scrollTop };
+    canvasArea.style.cursor = 'grabbing';
+    return;
+  }
+  if (currentTool !== 'pan') return;
+  isPanning = true;
+  panStart = { x: e.clientX, y: e.clientY, sl: canvasArea.scrollLeft, st: canvasArea.scrollTop };
+  canvasArea.style.cursor = 'grabbing';
+});
+
+canvasArea.addEventListener('mousemove', function(e) {
+  if (!isPanning) return;
+  canvasArea.scrollLeft = panStart.sl - (e.clientX - panStart.x);
+  canvasArea.scrollTop = panStart.st - (e.clientY - panStart.y);
+});
+
+canvasArea.addEventListener('mouseup', function(e) {
+  if (!isPanning) return;
+  isPanning = false;
+  canvasArea.style.cursor = currentTool === 'pan' ? 'grab' : '';
+});
+
+canvasArea.addEventListener('mouseleave', function() {
+  isPanning = false;
+});
+
+// Prevent default middle-click autoscroll behavior
+canvasArea.addEventListener('auxclick', function(e) {
+  if (e.button === 1) e.preventDefault();
+});
+
+// Mouse wheel zoom
+canvasArea.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? -0.1 : 0.1;
+  changeZoom(delta);
+}, { passive: false });
+
+// --- REDRAW ---
+function redrawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background image
+  if (bgImage) {
+    ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+  }
+
+  // Completed shapes
+  shapes.forEach(shape => {
+    const cat = CATEGORIES[shape.type];
+    if (!cat) return;
+
+    ctx.beginPath();
+    ctx.moveTo(shape.points[0].x, shape.points[0].y);
+    for (let i = 1; i < shape.points.length; i++) {
+      ctx.lineTo(shape.points[i].x, shape.points[i].y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = cat.fill;
+    ctx.fill();
+    ctx.strokeStyle = cat.stroke;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Area label
+    if (scalePPM) {
+      const area = calcPolygonArea(shape.points);
+      const cx = shape.points.reduce((s, p) => s + p.x, 0) / shape.points.length;
+      const cy = shape.points.reduce((s, p) => s + p.y, 0) / shape.points.length;
+      const fontSize = Math.max(18, Math.min(36, canvas.width / 40));
+      ctx.font = 'bold ' + fontSize + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.lineWidth = 4;
+      ctx.strokeText(area.toFixed(2) + ' m\u00B2', cx, cy);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(area.toFixed(2) + ' m\u00B2', cx, cy);
+    }
+
+    // Vertex dots
+    ctx.fillStyle = cat.stroke;
+    shape.points.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
+
+  // Current drawing in progress
+  if (currentTool && currentTool !== 'scale' && currentTool !== 'pan' && currentPoints.length > 0) {
+    const cat = CATEGORIES[currentTool];
+    if (cat) {
+      ctx.beginPath();
+      ctx.moveTo(currentPoints[0].x, currentPoints[0].y);
+      for (let i = 1; i < currentPoints.length; i++) {
+        ctx.lineTo(currentPoints[i].x, currentPoints[i].y);
+      }
+      if (mousePos) ctx.lineTo(mousePos.x, mousePos.y);
+      ctx.strokeStyle = cat.stroke;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Preview fill if 3+ points
+      if (currentPoints.length >= 3 && mousePos) {
+        ctx.beginPath();
+        ctx.moveTo(currentPoints[0].x, currentPoints[0].y);
+        for (let i = 1; i < currentPoints.length; i++) ctx.lineTo(currentPoints[i].x, currentPoints[i].y);
+        ctx.lineTo(mousePos.x, mousePos.y);
+        ctx.closePath();
+        ctx.fillStyle = cat.fill;
+        ctx.fill();
+      }
+
+      // Vertex dots
+      ctx.fillStyle = cat.stroke;
+      currentPoints.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  }
+
+  // Scale line
+  if (currentTool === 'scale' && scalePoints.length > 0) {
+    ctx.strokeStyle = '#D4AF37';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.moveTo(scalePoints[0].x, scalePoints[0].y);
+    if (scalePoints.length === 2) {
+      ctx.lineTo(scalePoints[1].x, scalePoints[1].y);
+    } else if (mousePos) {
+      ctx.lineTo(mousePos.x, mousePos.y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#D4AF37';
+    scalePoints.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // Update canvas display size
+  updateCanvasSize();
+}
+
+function updateCanvasSize() {
+  canvas.style.width = (canvas.width * zoomLevel) + 'px';
+  canvas.style.height = (canvas.height * zoomLevel) + 'px';
+  if (currentTool === 'pan') {
+    canvas.style.cursor = isPanning ? 'grabbing' : 'grab';
+  } else if (currentTool) {
+    canvas.style.cursor = 'crosshair';
+  } else {
+    canvas.style.cursor = 'default';
+  }
+}
+
+// --- Zoom ---
+function changeZoom(delta) {
+  zoomLevel = Math.max(0.1, Math.min(5, zoomLevel + delta));
+  document.getElementById('zoom-label').textContent = Math.round(zoomLevel * 100) + '%';
+  redrawCanvas();
+}
+
+function fitToScreen() {
+  const area = document.getElementById('canvas-area');
+  const padW = 80, padH = 80;
+  const maxW = area.clientWidth - padW;
+  const maxH = area.clientHeight - padH;
+  if (canvas.width === 0 || canvas.height === 0) return;
+  const sw = maxW / canvas.width;
+  const sh = maxH / canvas.height;
+  zoomLevel = Math.min(sw, sh, 1.5);
+  document.getElementById('zoom-label').textContent = Math.round(zoomLevel * 100) + '%';
+  redrawCanvas();
+}
+
+// --- Gauss Shoelace Area (current page) ---
+function calcPolygonArea(points) {
+  if (!scalePPM || points.length < 3) return 0;
+  let area = 0;
+  let j = points.length - 1;
+  for (let i = 0; i < points.length; i++) {
+    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
+    j = i;
+  }
+  return Math.abs(area / 2) / (scalePPM * scalePPM);
+}
+
+// --- Calibration ---
+function confirmCalibration() {
+  const meters = parseFloat(document.getElementById('cal-length').value);
+  if (isNaN(meters) || meters <= 0 || scalePoints.length < 2) return;
+
+  const dx = scalePoints[1].x - scalePoints[0].x;
+  const dy = scalePoints[1].y - scalePoints[0].y;
+  const distPx = Math.sqrt(dx * dx + dy * dy);
+  scalePPM = distPx / meters;
+
+  document.getElementById('calibration-modal').classList.add('hidden');
+  scalePoints = [];
+  currentTool = null;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  hideHint();
+
+  document.getElementById('scale-info').style.display = '';
+  document.getElementById('scale-info').textContent = '1 m = ' + scalePPM.toFixed(2) + ' px  |  Scala: 1:' + Math.round(scalePPM);
+  document.getElementById('scale-badge').style.display = '';
+
+  redrawCanvas();
+  updateTotals();
+}
+
+function cancelCalibration() {
+  document.getElementById('calibration-modal').classList.add('hidden');
+  scalePoints = [];
+  redrawCanvas();
+}
+
+// --- Piano Modal ---
+document.getElementById('piano-select').addEventListener('change', function() {
+  const customInput = document.getElementById('piano-custom');
+  if (this.value === '__custom__') {
+    customInput.style.display = '';
+    customInput.focus();
+  } else {
+    customInput.style.display = 'none';
+    customInput.value = '';
+  }
+});
+
+function confirmPianoModal() {
+  if (!pendingShape) return;
+  const sel = document.getElementById('piano-select');
+  const custom = document.getElementById('piano-custom');
+  const piano = sel.value === '__custom__' ? custom.value.trim() : sel.value;
+  if (!piano) return; // non confermare se vuoto
+
+  pendingShape.piano = piano;
+  shapes.push(pendingShape);
+  pendingShape = null;
+
+  document.getElementById('piano-modal').classList.add('hidden');
+  redrawCanvas();
+  updateTotals();
+  renderShapesList();
+}
+
+function cancelPianoModal() {
+  pendingShape = null;
+  document.getElementById('piano-modal').classList.add('hidden');
+  redrawCanvas();
+}
+
+// --- Multi-livello: distribuzione camere e servizi igienici per piano ---
+function getAbitazionePiani() {
+  // Save current page first
+  savePageState();
+  const pianiSet = new Set();
+  for (let i = 0; i < totalPages; i++) {
+    const ps = pageStates[i];
+    if (ps && ps.shapes) {
+      ps.shapes.forEach(s => {
+        if (s.type === 'abitazione' && s.piano) {
+          pianiSet.add(s.piano);
+        }
+      });
+    }
+  }
+  return Array.from(pianiSet);
+}
+
+function initStep5MultiLevel() {
+  const piani = getAbitazionePiani();
+  const divCamere = document.getElementById('distribuzione-camere');
+  const divServizi = document.getElementById('distribuzione-servizi');
+
+  if (piani.length >= 2) {
+    // Genera selettori distribuzione camere
+    let htmlC = '<div style="background:var(--bg-input);border-radius:10px;padding:14px 16px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin-bottom:10px;">Distribuzione camere per piano</div>';
+    piani.forEach((p, i) => {
+      htmlC += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+      htmlC += '<span style="font-size:13px;color:var(--text);">' + p + '</span>';
+      htmlC += '<select class="dist-camere-select" data-piano="' + p + '" style="width:80px;padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-bright);font-size:14px;font-weight:600;">';
+      for (let n = 0; n <= 6; n++) {
+        htmlC += '<option value="' + n + '">' + n + '</option>';
+      }
+      htmlC += '</select></div>';
+    });
+    htmlC += '</div>';
+    divCamere.innerHTML = htmlC;
+    divCamere.style.display = '';
+
+    // Genera selettori distribuzione servizi igienici
+    let htmlS = '<div style="background:var(--bg-input);border-radius:10px;padding:14px 16px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gold);margin-bottom:10px;">Distribuzione servizi igienici per piano</div>';
+    piani.forEach((p, i) => {
+      htmlS += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+      htmlS += '<span style="font-size:13px;color:var(--text);">' + p + '</span>';
+      htmlS += '<select class="dist-servizi-select" data-piano="' + p + '" style="width:80px;padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text-bright);font-size:14px;font-weight:600;">';
+      for (let n = 0; n <= 4; n++) {
+        htmlS += '<option value="' + n + '">' + n + '</option>';
+      }
+      htmlS += '</select></div>';
+    });
+    htmlS += '</div>';
+    divServizi.innerHTML = htmlS;
+    divServizi.style.display = '';
+  } else {
+    divCamere.innerHTML = '';
+    divCamere.style.display = 'none';
+    divServizi.innerHTML = '';
+    divServizi.style.display = 'none';
+    dettagliData.distribuzione_camere = null;
+    dettagliData.distribuzione_servizi = null;
+  }
+}
+
+// --- Totals (current page) ---
+function getCategoryTotals() {
+  const tots = {};
+  Object.keys(CATEGORIES).forEach(k => tots[k] = 0);
+  shapes.forEach(s => { if (tots[s.type] !== undefined) tots[s.type] += calcPolygonArea(s.points); });
+  return tots;
+}
+
+function updateTotals() {
+  const tots = getCategoryTotals();
+
+  const container = document.getElementById('totals-container');
+  container.innerHTML = '';
+  let grand = 0;
+  Object.keys(CATEGORIES).forEach(k => {
+    grand += tots[k];
+    const row = document.createElement('div');
+    row.className = 'totals-row';
+    row.innerHTML = '<span class="tcat"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + CATEGORIES[k].stroke + ';margin-right:6px;"></span>' + CATEGORIES[k].label + '</span><span class="tval">' + tots[k].toFixed(2) + ' m\u00B2</span>';
+    container.appendChild(row);
+
+    // Update badge on tool button
+    const badge = document.getElementById('badge-' + k);
+    if (badge) {
+      if (tots[k] > 0) { badge.style.display = ''; badge.textContent = tots[k].toFixed(1) + ' m\u00B2'; }
+      else { badge.style.display = 'none'; }
+    }
+  });
+
+  document.getElementById('tot-grand').textContent = grand.toFixed(2) + ' m\u00B2';
+}
+
+// --- Shapes list ---
+function renderShapesList() {
+  const section = document.getElementById('shapes-section');
+  const list = document.getElementById('shapes-list');
+  list.innerHTML = '';
+
+  if (shapes.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+
+  shapes.forEach((s, i) => {
+    const cat = CATEGORIES[s.type];
+    const area = calcPolygonArea(s.points);
+    const div = document.createElement('div');
+    div.className = 'shape-item';
+    const pianoLabel = s.piano ? ' — ' + s.piano : '';
+    div.innerHTML = '<span class="sdot" style="background:' + cat.stroke + '"></span>' +
+      '<span class="sname">' + cat.label + ' #' + (i + 1) + pianoLabel + '</span>' +
+      '<span class="sarea">' + area.toFixed(2) + ' m\u00B2</span>' +
+      '<button class="sdel" onclick="deleteShape(' + s.id + ')" title="Elimina">&times;</button>';
+    list.appendChild(div);
+  });
+}
+
+function deleteShape(id) {
+  shapes = shapes.filter(s => s.id !== id);
+  redrawCanvas();
+  updateTotals();
+  renderShapesList();
+}
+
+function undoAction() {
+  if (currentPoints.length > 0) {
+    currentPoints.pop();
+  } else if (shapes.length > 0) {
+    shapes.pop();
+    updateTotals();
+    renderShapesList();
+  }
+  redrawCanvas();
+}
+
+function resetAll() {
+  if (!confirm('Vuoi davvero resettare tutti i poligoni disegnati su questa pagina?')) return;
+  shapes = [];
+  currentPoints = [];
+  mousePos = null;
+  updateTotals();
+  renderShapesList();
+  redrawCanvas();
+}
+
+// ==========================================
+// STEP 3: COMPASS
+// ==========================================
+function initCompass() {
+  const grid = document.getElementById('compass-grid');
+  grid.innerHTML = '';
+  COMPASS_DIRS.forEach(dir => {
+    const btn = document.createElement('div');
+    btn.className = 'compass-btn' + (selectedNord === dir ? ' selected' : '');
+    btn.textContent = dir;
+    btn.onclick = () => {
+      selectedNord = dir;
+      initCompass();
+    };
+    grid.appendChild(btn);
+  });
+}
+
+// ==========================================
+// STEP 4: CONFINI
+// ==========================================
+function initConfini() {
+  const grid = document.getElementById('confini-grid');
+  grid.innerHTML = '';
+  CONFINI_LATI.forEach(lato => {
+    if (!confiniData[lato]) confiniData[lato] = [];
+    const card = document.createElement('div');
+    card.className = 'confine-card';
+    card.innerHTML = '<h4>' + lato + '</h4>';
+    CONFINI_OPTIONS.forEach(opt => {
+      const checked = confiniData[lato].includes(opt);
+      const lbl = document.createElement('label');
+      lbl.innerHTML = '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleConfine(\'' + lato + '\',\'' + opt + '\',this.checked)"> ' + opt;
+      card.appendChild(lbl);
+    });
+    grid.appendChild(card);
+  });
+}
+
+function toggleConfine(lato, opt, checked) {
+  if (!confiniData[lato]) confiniData[lato] = [];
+  if (checked) {
+    if (!confiniData[lato].includes(opt)) confiniData[lato].push(opt);
+  } else {
+    confiniData[lato] = confiniData[lato].filter(o => o !== opt);
+  }
+}
+
+// ==========================================
+// STEP 5: DETTAGLI
+// ==========================================
+function selectRadio(el, field, value) {
+  dettagliData[field] = value;
+  el.parentElement.querySelectorAll('.radio-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+
+  if (field === 'ristrutturazione') {
+    document.getElementById('ristrutturazione-desc-group').style.display = value === 'Si' ? '' : 'none';
+  }
+}
+
+function toggleCucina(which) {
+  const chkCucina = document.getElementById('chk-cucina-abitabile');
+  const chkAngolo = document.getElementById('chk-angolo-cottura');
+  const toggleC = document.getElementById('toggle-cucina');
+  const toggleA = document.getElementById('toggle-angolo');
+
+  if (which === 'cucina_abitabile') {
+    const newVal = !chkCucina.checked;
+    chkCucina.checked = newVal;
+    dettagliData.cucina_abitabile = newVal;
+    toggleC.classList.toggle('checked', newVal);
+    if (newVal) {
+      chkAngolo.checked = false;
+      dettagliData.angolo_cottura = false;
+      toggleA.classList.remove('checked');
+    }
+  } else {
+    const newVal = !chkAngolo.checked;
+    chkAngolo.checked = newVal;
+    dettagliData.angolo_cottura = newVal;
+    toggleA.classList.toggle('checked', newVal);
+    if (newVal) {
+      chkCucina.checked = false;
+      dettagliData.cucina_abitabile = false;
+      toggleC.classList.remove('checked');
+    }
+  }
+}
+
+function toggleAngoloExtra() {
+  const chk = document.getElementById('chk-angolo-cottura-extra');
+  const toggle = document.getElementById('toggle-angolo-extra');
+  const newVal = !chk.checked;
+  chk.checked = newVal;
+  dettagliData.angolo_cottura_extra = newVal;
+  toggle.classList.toggle('checked', newVal);
+}
+
+function togglePertinenza(el, key) {
+  const chk = el.querySelector('input[type=checkbox]');
+  const newVal = !chk.checked;
+  chk.checked = newVal;
+  el.classList.toggle('checked', newVal);
+  if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
+  dettagliData.pertinenze[key] = newVal;
+}
+
+// ==========================================
+// STEP 6: SUMMARY & EXPORT (COMBINED ALL PAGES)
+// ==========================================
+function collectDettagli() {
+  dettagliData.tipologia = document.getElementById('tipologia').value;
+  dettagliData.ristrutturazione_desc = document.getElementById('ristrutturazione-desc').value;
+  dettagliData.piani_fuori_terra = parseInt(document.getElementById('piani-fuori-terra').value) || 1;
+  dettagliData.piani_entroterra = parseInt(document.getElementById('piani-entroterra').value) || 0;
+  dettagliData.num_servizi_igienici = document.getElementById('num-servizi-igienici').value;
+
+  // Collect distribuzione camere/servizi per piano (multi-livello)
+  const distCamereSelects = document.querySelectorAll('.dist-camere-select');
+  if (distCamereSelects.length > 0) {
+    dettagliData.distribuzione_camere = [];
+    distCamereSelects.forEach(sel => {
+      dettagliData.distribuzione_camere.push({
+        piano: sel.getAttribute('data-piano'),
+        quantita: parseInt(sel.value) || 0
+      });
+    });
+  } else {
+    dettagliData.distribuzione_camere = null;
+  }
+
+  const distServiziSelects = document.querySelectorAll('.dist-servizi-select');
+  if (distServiziSelects.length > 0) {
+    dettagliData.distribuzione_servizi = [];
+    distServiziSelects.forEach(sel => {
+      dettagliData.distribuzione_servizi.push({
+        piano: sel.getAttribute('data-piano'),
+        quantita: parseInt(sel.value) || 0
+      });
+    });
+  } else {
+    dettagliData.distribuzione_servizi = null;
+  }
+
+  // Collect pertinenze
+  if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
+  dettagliData.pertinenze.cantina = document.getElementById('chk-cantina').checked;
+  dettagliData.pertinenze.solaio = document.getElementById('chk-solaio').checked;
+  dettagliData.pertinenze.ripostiglio = document.getElementById('chk-ripostiglio').checked;
+  dettagliData.pertinenze.box_auto = document.getElementById('chk-box-auto').checked;
+  dettagliData.pertinenze.giardino = document.getElementById('chk-giardino').checked;
+  dettagliData.pertinenze.sottotetto = document.getElementById('chk-sottotetto').checked;
+  dettagliData.pertinenze.mansarda = document.getElementById('chk-mansarda').checked;
+  dettagliData.pertinenze.corte_esclusiva = document.getElementById('chk-corte-esclusiva').checked;
+}
+
+function buildSummary() {
+  collectDettagli();
+
+  // Use GLOBAL totals across all pages
+  const tots = getGlobalCategoryTotals();
+  let grand = 0;
+  Object.values(tots).forEach(v => grand += v);
+
+  const grid = document.getElementById('summary-grid');
+  grid.innerHTML = '';
+
+  // Superfici card (combined all pages)
+  let html = '<div class="summary-card"><h4>Superfici Misurate (tutte le pagine)</h4>';
+  Object.keys(CATEGORIES).forEach(k => {
+    html += '<div class="summary-row"><span class="sr-label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + CATEGORIES[k].stroke + ';margin-right:6px;"></span>' + CATEGORIES[k].label + '</span><span class="sr-value">' + tots[k].toFixed(2) + ' m\u00B2</span></div>';
+  });
+  html += '<div class="summary-row" style="border-top:1px solid var(--gold);padding-top:10px;margin-top:6px;"><span class="sr-label" style="font-weight:700;color:var(--gold);">TOTALE</span><span class="sr-value" style="color:var(--gold);font-size:16px;">' + grand.toFixed(2) + ' m\u00B2</span></div>';
+  html += '</div>';
+
+  // Nord + Dettagli card
+  html += '<div class="summary-card"><h4>Dettagli Immobile</h4>';
+  html += '<div class="summary-row"><span class="sr-label">Nord</span><span class="sr-value">' + (selectedNord || '-') + '</span></div>';
+  html += '<div class="summary-row"><span class="sr-label">Tipologia</span><span class="sr-value">' + (dettagliData.tipologia || '-') + '</span></div>';
+  html += '<div class="summary-row"><span class="sr-label">Ascensore</span><span class="sr-value">' + (dettagliData.ascensore || '-') + '</span></div>';
+  html += '<div class="summary-row"><span class="sr-label">Ristrutturazioni</span><span class="sr-value">' + (dettagliData.ristrutturazione || '-') + '</span></div>';
+  if (dettagliData.ristrutturazione === 'Si' && dettagliData.ristrutturazione_desc) {
+    html += '<div class="summary-row"><span class="sr-label">Descrizione</span><span class="sr-value" style="max-width:200px;text-align:right;">' + dettagliData.ristrutturazione_desc + '</span></div>';
+  }
+  html += '<div class="summary-row"><span class="sr-label">Piani fuori terra</span><span class="sr-value">' + dettagliData.piani_fuori_terra + '</span></div>';
+  html += '<div class="summary-row"><span class="sr-label">Piani entroterra</span><span class="sr-value">' + dettagliData.piani_entroterra + '</span></div>';
+  html += '</div>';
+
+  // Composizione appartamento card
+  const cucinaLabel = dettagliData.cucina_abitabile ? 'Cucina abitabile' : (dettagliData.angolo_cottura ? 'Angolo cottura' : '-');
+  html += '<div class="summary-card"><h4>Composizione Appartamento</h4>';
+  html += '<div class="summary-row"><span class="sr-label">Camere</span><span class="sr-value">' + (dettagliData.num_camere || '-') + '</span></div>';
+  if (dettagliData.distribuzione_camere && dettagliData.distribuzione_camere.length > 0) {
+    dettagliData.distribuzione_camere.forEach(d => {
+      html += '<div class="summary-row" style="padding-left:16px;"><span class="sr-label" style="font-size:12px;color:var(--text-dim);">' + d.piano + '</span><span class="sr-value" style="font-size:12px;">' + d.quantita + '</span></div>';
+    });
+  }
+  html += '<div class="summary-row"><span class="sr-label">Servizi igienici</span><span class="sr-value">' + (dettagliData.num_servizi_igienici || '-') + '</span></div>';
+  if (dettagliData.distribuzione_servizi && dettagliData.distribuzione_servizi.length > 0) {
+    dettagliData.distribuzione_servizi.forEach(d => {
+      html += '<div class="summary-row" style="padding-left:16px;"><span class="sr-label" style="font-size:12px;color:var(--text-dim);">' + d.piano + '</span><span class="sr-value" style="font-size:12px;">' + d.quantita + '</span></div>';
+    });
+  }
+  html += '<div class="summary-row"><span class="sr-label">Soggiorno</span><span class="sr-value">' + (dettagliData.soggiorno || '-') + '</span></div>';
+  html += '<div class="summary-row"><span class="sr-label">Cucina</span><span class="sr-value">' + cucinaLabel + '</span></div>';
+  html += '<div class="summary-row"><span class="sr-label">Ingresso</span><span class="sr-value">' + (dettagliData.ingresso || '-') + '</span></div>';
+  html += '</div>';
+
+  // Pertinenze card
+  const pert = dettagliData.pertinenze || {};
+  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', corte_esclusiva: 'Corte esclusiva' };
+  html += '<div class="summary-card"><h4>Pertinenze</h4>';
+  Object.keys(pertLabels).forEach(k => {
+    html += '<div class="summary-row"><span class="sr-label">' + pertLabels[k] + '</span><span class="sr-value" style="color:' + (pert[k] ? 'var(--green)' : 'var(--text-dim)') + ';">' + (pert[k] ? 'S\u00EC' : 'No') + '</span></div>';
+  });
+  html += '</div>';
+
+  // Confini cards
+  CONFINI_LATI.forEach(lato => {
+    const items = confiniData[lato] || [];
+    html += '<div class="summary-card"><h4>Confine ' + lato + '</h4>';
+    if (items.length === 0) {
+      html += '<div class="summary-row"><span class="sr-label" style="font-style:italic;">Non specificato</span></div>';
+    } else {
+      items.forEach(it => {
+        html += '<div class="summary-row"><span class="sr-value">' + it + '</span></div>';
+      });
+    }
+    html += '</div>';
+  });
+
+  // Per-page detail card
+  html += '<div class="summary-card" style="grid-column: 1 / -1;"><h4>Dettaglio per Pagina</h4>';
+  for (let i = 0; i < totalPages; i++) {
+    const ps = pageStates[i];
+    const src = allPageSources[i];
+    const pageName = src ? src.fileName : ('Pagina ' + (i + 1));
+    if (ps && ps.shapes.length > 0 && ps.scalePPM) {
+      let pageTotal = 0;
+      ps.shapes.forEach(s => {
+        pageTotal += calcPolygonAreaWithScale(s.points, ps.scalePPM);
+      });
+      html += '<div class="summary-row" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:4px;"><span class="sr-label" style="font-weight:700;">' + pageName + ' (' + ps.shapes.length + ' poligoni)</span><span class="sr-value" style="font-weight:700;">' + pageTotal.toFixed(2) + ' m\u00B2</span></div>';
+      ps.shapes.forEach((s, idx) => {
+        const cat = CATEGORIES[s.type] || { label: s.type, stroke: '#888' };
+        const area = calcPolygonAreaWithScale(s.points, ps.scalePPM);
+        const pianoStr = s.piano ? ' — ' + s.piano : '';
+        html += '<div class="summary-row" style="padding-left:16px;"><span class="sr-label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + cat.stroke + ';margin-right:6px;"></span>' + cat.label + ' #' + (idx + 1) + pianoStr + '</span><span class="sr-value">' + area.toFixed(2) + ' m\u00B2</span></div>';
+      });
+    } else {
+      html += '<div class="summary-row"><span class="sr-label" style="opacity:0.5;">' + pageName + '</span><span class="sr-value" style="opacity:0.5;">- nessuna misurazione -</span></div>';
+    }
+  }
+  html += '</div>';
+
+  grid.innerHTML = html;
+
+  // JSON preview
+  const jsonData = buildJSON();
+  document.getElementById('json-preview').textContent = JSON.stringify(jsonData, null, 2);
+}
+
+function buildJSON() {
+  collectDettagli();
+
+  // Global combined totals
+  const tots = getGlobalCategoryTotals();
+  let grand = 0;
+  const superficiPerCategoria = {};
+  Object.keys(CATEGORIES).forEach(k => {
+    grand += tots[k];
+    superficiPerCategoria[k + '_mq'] = parseFloat(tots[k].toFixed(2));
+  });
+  superficiPerCategoria.totale_mq = parseFloat(grand.toFixed(2));
+
+  // All polygons from all pages
+  const allPolygons = getAllShapesFlat();
+
+  // Per-page scales
+  const scalePerPage = [];
+  for (let i = 0; i < totalPages; i++) {
+    const ps = pageStates[i];
+    const src = allPageSources[i];
+    scalePerPage.push({
+      page: i,
+      label: src ? src.fileName : ('Pagina ' + (i + 1)),
+      scala_ppm: ps && ps.scalePPM ? parseFloat(ps.scalePPM.toFixed(2)) : null
+    });
+  }
+
+  return {
+    superfici: {
+      ...superficiPerCategoria,
+      poligoni: allPolygons.map((s, i) => ({
+        id: i + 1,
+        categoria: s.type,
+        categoria_label: CATEGORIES[s.type] ? CATEGORIES[s.type].label : s.type,
+        area_mq: parseFloat(s.area_mq.toFixed(2)),
+        piano: s.piano || null,
+        vertici: s.points.length,
+        pagina: s.page,
+        pagina_label: s.pageLabel
+      }))
+    },
+    pagine: scalePerPage,
+    nord: selectedNord || null,
+    confini: confiniData,
+    dettagli: {
+      tipologia: dettagliData.tipologia || null,
+      ascensore: dettagliData.ascensore || null,
+      ristrutturazioni_recenti: dettagliData.ristrutturazione || null,
+      ristrutturazioni_descrizione: dettagliData.ristrutturazione === 'Si' ? dettagliData.ristrutturazione_desc || null : null
+    },
+    piani: {
+      fuori_terra: dettagliData.piani_fuori_terra,
+      entroterra: dettagliData.piani_entroterra
+    },
+    composizione: {
+      num_camere: dettagliData.num_camere ? parseInt(dettagliData.num_camere) : null,
+      distribuzione_camere: dettagliData.distribuzione_camere || null,
+      num_servizi_igienici: dettagliData.num_servizi_igienici ? parseInt(dettagliData.num_servizi_igienici) : null,
+      distribuzione_servizi: dettagliData.distribuzione_servizi || null,
+      soggiorno: dettagliData.soggiorno || null,
+      cucina_abitabile: dettagliData.cucina_abitabile,
+      angolo_cottura: dettagliData.angolo_cottura,
+      angolo_cottura_extra: dettagliData.angolo_cottura_extra,
+      ingresso: dettagliData.ingresso || null
+    },
+    pertinenze: {
+      cantina: !!(dettagliData.pertinenze && dettagliData.pertinenze.cantina),
+      solaio: !!(dettagliData.pertinenze && dettagliData.pertinenze.solaio),
+      ripostiglio: !!(dettagliData.pertinenze && dettagliData.pertinenze.ripostiglio),
+      box_auto: !!(dettagliData.pertinenze && dettagliData.pertinenze.box_auto),
+      giardino: !!(dettagliData.pertinenze && dettagliData.pertinenze.giardino),
+      sottotetto: !!(dettagliData.pertinenze && dettagliData.pertinenze.sottotetto),
+      mansarda: !!(dettagliData.pertinenze && dettagliData.pertinenze.mansarda),
+      corte_esclusiva: !!(dettagliData.pertinenze && dettagliData.pertinenze.corte_esclusiva)
+    }
+  };
+}
+
+
+async function exportPlanimetryPDF() {
+  try {
+    savePageState();
+    const { jsPDF } = window.jspdf;
+    if (!jsPDF) { alert('Errore: jsPDF non caricato'); return; }
+    let pdf;
+
+    const logoBase64 = "data:image/jpeg;base64,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";
+
+    // Preload logo to get aspect ratio
+    const logoAspect = await new Promise((resolve) => {
+      const logoImg = new Image();
+      logoImg.onload = () => resolve(logoImg.naturalWidth / logoImg.naturalHeight);
+      logoImg.onerror = () => resolve(1.5);
+      logoImg.src = logoBase64;
+    });
+
+    if (allPageSources.length === 0) {
+      alert('Nessuna pagina caricata.');
+      return;
+    }
+
+    for (let i = 0; i < allPageSources.length; i++) {
+      const src = allPageSources[i];
+      const ps = pageStates[i];
+      if (!src) continue;
+
+      // --- Step 1: get the background image onto an offscreen canvas ---
+      const offCanvas = document.createElement('canvas');
+      const offCtx = offCanvas.getContext('2d');
+      let cw, ch;
+
+      if (src.type === 'pdf' && src.pdfDoc) {
+        // Render PDF page to offscreen canvas
+        const page = await src.pdfDoc.getPage(src.pdfPageNum);
+        const scale = 2.0;
+        const viewport = page.getViewport({ scale });
+        offCanvas.width = viewport.width;
+        offCanvas.height = viewport.height;
+        await page.render({ canvasContext: offCtx, viewport }).promise;
+        cw = viewport.width;
+        ch = viewport.height;
+
+      } else if (src.type === 'image' && src.imageUrl) {
+        // Load image
+        const img = await new Promise((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = () => reject(new Error('Impossibile caricare immagine: ' + src.fileName));
+          im.src = src.imageUrl;
+        });
+        cw = img.naturalWidth;
+        ch = img.naturalHeight;
+        offCanvas.width = cw;
+        offCanvas.height = ch;
+        offCtx.drawImage(img, 0, 0, cw, ch);
+
+      } else {
+        continue; // skip unknown source types
+      }
+
+      // --- Step 2: draw polygons on top ---
+      if (ps && ps.shapes && ps.shapes.length > 0) {
+        ps.shapes.forEach(function(shape) {
+          var cat = CATEGORIES[shape.type];
+          if (!cat || !shape.points || shape.points.length < 3) return;
+          offCtx.beginPath();
+          offCtx.moveTo(shape.points[0].x, shape.points[0].y);
+          for (var pi = 1; pi < shape.points.length; pi++) {
+            offCtx.lineTo(shape.points[pi].x, shape.points[pi].y);
+          }
+          offCtx.closePath();
+          offCtx.fillStyle = cat.fill;
+          offCtx.fill();
+          offCtx.strokeStyle = cat.stroke;
+          offCtx.lineWidth = 3;
+          offCtx.stroke();
+          if (ps.scalePPM) {
+            var area = calcPolygonAreaWithScale(shape.points, ps.scalePPM);
+            var cx = shape.points.reduce(function(s, p) { return s + p.x; }, 0) / shape.points.length;
+            var cy = shape.points.reduce(function(s, p) { return s + p.y; }, 0) / shape.points.length;
+            var fontSize = Math.max(18, Math.min(36, cw / 40));
+            offCtx.font = 'bold ' + fontSize + 'px sans-serif';
+            offCtx.textAlign = 'center';
+            offCtx.textBaseline = 'middle';
+            offCtx.strokeStyle = 'rgba(0,0,0,0.7)';
+            offCtx.lineWidth = 4;
+            offCtx.strokeText(area.toFixed(2) + ' m\u00B2', cx, cy);
+            offCtx.fillStyle = '#fff';
+            offCtx.fillText(area.toFixed(2) + ' m\u00B2', cx, cy);
+          }
+          offCtx.fillStyle = cat.stroke;
+          shape.points.forEach(function(p) {
+            offCtx.beginPath();
+            offCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+            offCtx.fill();
+          });
+        });
+      }
+
+      var planDataUrl = offCanvas.toDataURL('image/jpeg', 0.92);
+
+      // --- Step 3: compute PDF page size (original image size) ---
+      var px2mm = 25.4 / 96;
+      var imgWmm = cw * px2mm;
+      var imgHmm = ch * px2mm;
+      var footerH = 22;
+      var margin = 10;
+      var titleH = 10;
+      var neededW = imgWmm + margin * 2;
+      var neededH = titleH + imgHmm + margin + footerH + margin;
+      var pdfW = Math.max(210, neededW);
+      var pdfH = Math.max(297, neededH);
+
+      if (i === 0) {
+        pdf = new jsPDF({ orientation: pdfW > pdfH ? 'l' : 'p', unit: 'mm', format: [pdfW, pdfH] });
+      } else {
+        pdf.addPage([pdfW, pdfH], pdfW > pdfH ? 'l' : 'p');
+      }
+
+      var curY = margin;
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(30, 41, 59);
+      var pageName = src.fileName || ('Pagina ' + (i + 1));
+      pdf.text(pageName, pdfW / 2, curY + 6, { align: 'center' });
+      curY += titleH;
+
+      var imgX = (pdfW - imgWmm) / 2;
+      pdf.addImage(planDataUrl, 'JPEG', imgX, curY, imgWmm, imgHmm);
+
+      // --- Footer dark band ---
+      var footerY = pdfH - footerH;
+      pdf.setFillColor(26, 26, 46);
+      pdf.rect(0, footerY, pdfW, footerH, 'F');
+
+      // --- Right: logo + effetre properties (render first to know its width) ---
+      var logoBlockW = 0;
+      try {
+        var logoMaxH = footerH - 8;
+        var logoH = logoMaxH;
+        var logoW = logoH * logoAspect;
+        var logoX = pdfW - 8 - logoW;
+        var logoY = footerY + 2;
+        pdf.addImage(logoBase64, 'JPEG', logoX, logoY, logoW, logoH);
+
+        var textCenterX = logoX + logoW / 2;
+        var textY = logoY + logoH + 3;
+        pdf.setFontSize(6);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(212, 175, 55);
+        var effetreW = pdf.getTextWidth('effetre ');
+        var totalTextW = pdf.getTextWidth('effetre properties');
+        var textStartX = textCenterX - totalTextW / 2;
+        pdf.text('effetre', textStartX, textY);
+        pdf.setTextColor(255, 255, 255);
+        pdf.text('properties', textStartX + effetreW, textY);
+        logoBlockW = logoW + 16;
+      } catch(logoErr) {
+        pdf.setTextColor(212, 175, 55);
+        pdf.setFontSize(8);
+        pdf.text('Effetre', pdfW - 30, footerY + footerH / 2 + 3);
+        logoBlockW = 40;
+      }
+
+      // --- Horizontal surface entries across footer ---
+      if (ps && ps.shapes && ps.shapes.length > 0 && ps.scalePPM) {
+        var pageTots = {};
+        Object.keys(CATEGORIES).forEach(function(k) { pageTots[k] = 0; });
+        var pageGrand = 0;
+        ps.shapes.forEach(function(s) {
+          var a = calcPolygonAreaWithScale(s.points, ps.scalePPM);
+          if (pageTots[s.type] !== undefined) pageTots[s.type] += a;
+          pageGrand += a;
+        });
+
+        var footerCenterY = footerY + footerH / 2;
+        var curX = 8;
+        var dotR = 1.8;
+        var availW = pdfW - logoBlockW - 10;
+
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'normal');
+
+        Object.keys(CATEGORIES).forEach(function(k) {
+          if (pageTots[k] > 0 && curX < availW) {
+            var col = CATEGORIES[k].stroke;
+            var r = parseInt(col.slice(1, 3), 16);
+            var g = parseInt(col.slice(3, 5), 16);
+            var b = parseInt(col.slice(5, 7), 16);
+            pdf.setFillColor(r, g, b);
+            pdf.circle(curX + dotR, footerCenterY, dotR, 'F');
+            curX += dotR * 2 + 2;
+
+            var entryText = CATEGORIES[k].label + ': ' + pageTots[k].toFixed(2) + ' m\u00B2';
+            pdf.setTextColor(230, 230, 230);
+            pdf.text(entryText, curX, footerCenterY + 1);
+            curX += pdf.getTextWidth(entryText) + 6;
+          }
+        });
+
+        // Totale in gold, bold
+        if (curX < availW) {
+          pdf.setFillColor(212, 175, 55);
+          pdf.rect(curX, footerCenterY - 4, 0.5, 8, 'F');
+          curX += 4;
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(9);
+          pdf.setTextColor(212, 175, 55);
+          pdf.text('Tot: ' + pageGrand.toFixed(2) + ' m\u00B2', curX, footerCenterY + 1.5);
+        }
+      }
+    }
+
+    if (pdf) {
+      pdf.save('planimetria_superfici.pdf');
+    } else {
+      alert('Nessuna pagina valida da esportare.');
+    }
+  } catch(err) {
+    console.error('exportPlanimetryPDF error:', err);
+    alert('Errore durante la generazione del PDF:\n' + err.message);
+  }
+}
+
+
+function exportJSON() {
+  const json = buildJSON();
+  const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'planimetria_data.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ==========================================
+// INIT
+// ==========================================
+renderStepper();
+initCompass();
+initConfini();
+updateTotals();
+
+</script>
+</body>
+</html>
