@@ -449,6 +449,102 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+
+  /* ===== MOBILE LAYOUT ===== */
+  @media (max-width: 768px) {
+    body { overflow: auto; }
+    #app { height: auto; min-height: 100vh; }
+
+    /* Stepper compatto e scrollabile */
+    .stepper-bar { padding: 10px 8px 10px 90px; overflow-x: auto; justify-content: flex-start; }
+    .stepper-bar::-webkit-scrollbar { display: none; }
+    .home-back-btn { left: 8px; padding: 6px 10px; font-size: 12px; }
+    .step-item { padding: 6px 10px; gap: 6px; }
+    .step-num { width: 26px; height: 26px; font-size: 12px; }
+    .step-label { font-size: 11px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+    .step-connector { width: 16px; }
+
+    /* Upload box */
+    .upload-panel { gap: 18px; padding: 20px 12px; }
+    .upload-box { width: 100%; padding: 30px 16px; border-radius: 14px; }
+    .upload-box h2 { font-size: 22px; }
+    .branding-header img { height: 80px; }
+    .branding-header .brand-name { font-size: 22px; letter-spacing: 4px; }
+    .branding-header .tool-title { font-size: 14px; letter-spacing: 1px; }
+
+    /* Canvas layout: sidebar diventa drawer dal basso */
+    .canvas-layout { flex-direction: column; }
+    .canvas-sidebar {
+      width: 100%; max-height: 50vh; border-right: none; border-top: 1px solid var(--border);
+      order: 2; flex-shrink: 0;
+    }
+    .canvas-sidebar.hidden-mobile { display: none; }
+    .canvas-area-wrapper { order: 1; min-height: 50vh; flex: 1; }
+    .sidebar-section { padding: 14px; }
+
+    /* Float toolbar più stretto */
+    .float-toolbar { padding: 6px 10px; gap: 4px; bottom: 12px; }
+    .float-toolbar button { width: 32px; height: 32px; font-size: 16px; }
+    .float-toolbar .zoom-label { font-size: 11px; width: 38px; }
+    .float-hint { padding: 8px 14px; font-size: 11px; top: 8px; max-width: 90vw; text-align: center; }
+
+    /* Modals full width */
+    .modal-box { width: calc(100vw - 24px); padding: 22px; }
+    .modal-box input[type=number] { font-size: 22px; padding: 10px 14px; }
+
+    /* Forms */
+    .form-panel { padding: 16px 12px; }
+    .form-card { padding: 22px 18px; border-radius: 12px; }
+    .split-panel { flex-direction: column; }
+    .preview-pane { border-right: none; border-bottom: 1px solid var(--border); min-height: 40vh; padding: 14px; }
+    .form-side { padding: 18px 12px; }
+    .compass-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .compass-btn { padding: 12px 8px; font-size: 14px; }
+    .confini-grid { grid-template-columns: 1fr; gap: 12px; }
+    .summary-grid { grid-template-columns: 1fr; gap: 12px; }
+    .detail-row { flex-direction: column; gap: 0; }
+    .radio-group { flex-wrap: wrap; }
+    .radio-option { min-width: 60px; padding: 12px 14px; font-size: 13px; }
+    .export-row { flex-direction: column; }
+    .nav-buttons { flex-direction: column-reverse; gap: 8px; }
+    .nav-buttons .btn-nav { width: 100%; padding: 14px; }
+
+    /* Mobile-only / desktop-only helpers */
+    .desktop-only { display: none !important; }
+    .mobile-only { display: block !important; }
+
+    /* Mobile measurement bar (step 2 mobile) */
+    .mobile-meas-bar {
+      display: flex; gap: 8px; padding: 10px 12px; background: var(--bg-panel);
+      border-bottom: 1px solid var(--border); flex-shrink: 0; align-items: center;
+    }
+    .mobile-meas-bar .mb-btn {
+      flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-card); color: var(--text); font-weight: 600; font-size: 13px;
+      cursor: pointer; font-family: inherit;
+    }
+    .mobile-meas-bar .mb-btn.active { background: var(--gold); color: #000; border-color: var(--gold); }
+    .mobile-meas-bar .mb-info {
+      font-family: monospace; font-size: 12px; color: var(--gold); padding: 6px 10px;
+      background: var(--bg-input); border-radius: 6px; min-width: 70px; text-align: center;
+    }
+    .meas-list-mobile {
+      padding: 12px; max-height: 40vh; overflow-y: auto;
+    }
+    .meas-list-mobile h3 { font-size: 14px; color: var(--gold); margin-bottom: 10px; }
+    .meas-list-mobile .ml-empty { color: var(--text-dim); font-size: 13px; font-style: italic; text-align: center; padding: 16px; }
+    .meas-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+      background: var(--bg-input); border-radius: 8px; margin-bottom: 6px; font-size: 13px;
+    }
+    .meas-item .mi-num { color: var(--gold); font-weight: 700; min-width: 24px; }
+    .meas-item .mi-val { flex: 1; font-family: monospace; font-weight: 600; color: var(--text-bright); }
+    .meas-item .mi-del { background: none; border: none; color: var(--red); cursor: pointer; font-size: 18px; padding: 4px 8px; border-radius: 4px; }
+    .meas-item .mi-del:hover { background: rgba(239,68,68,0.2); }
+  }
+
+  /* Default: desktop hides mobile-only */
+  .mobile-only { display: none; }
 </style>
 </head>
 <body>
@@ -500,7 +596,7 @@
           </div>
 
           <!-- Calibrazione -->
-          <div class="sidebar-section">
+          <div class="sidebar-section desktop-only">
             <h3><span class="num">1</span> Calibrazione Scala</h3>
             <button class="tool-btn" id="btn-scale" onclick="selectTool('scale')">
               <span style="font-size:18px;">&#128207;</span> Imposta Scala
@@ -509,8 +605,18 @@
             <div class="scale-info" id="scale-info" style="display:none;"></div>
           </div>
 
+          <!-- Mobile: misurazioni dal cantiere -->
+          <div class="sidebar-section mobile-only" id="mobile-meas-section">
+            <h3>&#128207; Misure dal cantiere</h3>
+            <p style="font-size:12px; color:var(--text-dim); margin-bottom:10px; line-height:1.5;">
+              Tappa due punti sulla planimetria — il pallino si aggancer&agrave; alla linea pi&ugrave; vicina.
+              Poi inserisci la misura rilevata.
+            </p>
+            <div id="meas-list-mobile" class="meas-list-mobile"></div>
+          </div>
+
           <!-- Categorie -->
-          <div class="sidebar-section">
+          <div class="sidebar-section desktop-only">
             <h3><span class="num">2</span> Disegna Aree</h3>
             <button class="tool-btn" id="btn-abitazione" onclick="selectTool('abitazione')">
               <span class="dot" style="background:#ef4444;"></span> Abitazione
@@ -551,13 +657,13 @@
           </div>
 
           <!-- Shapes list -->
-          <div class="sidebar-section" id="shapes-section" style="display:none;">
+          <div class="sidebar-section desktop-only" id="shapes-section" style="display:none;">
             <h3><span class="num">3</span> Poligoni Disegnati</h3>
             <div id="shapes-list"></div>
           </div>
 
           <!-- Totals -->
-          <div class="sidebar-section">
+          <div class="sidebar-section desktop-only">
             <h3>Superfici (pagina corrente)</h3>
             <div id="totals-container"></div>
             <div class="totals-grand"><span>TOTALE pagina</span><span class="tval" id="tot-grand">0.0 m&sup2;</span></div>
@@ -866,11 +972,28 @@
   </div>
 </div>
 
+<!-- MEASUREMENT MODAL (mobile) -->
+<div class="modal-overlay hidden" id="meas-modal">
+  <div class="modal-box">
+    <h3>&#128207; Inserisci misura</h3>
+    <p>Distanza tra i due punti rilevata in cantiere</p>
+    <label>Misura reale (metri)</label>
+    <input type="number" id="meas-value" value="" min="0.01" step="0.01" inputmode="decimal" placeholder="es. 3.20">
+    <div class="unit-hint">metri</div>
+    <label style="margin-top:8px;">Etichetta (opzionale)</label>
+    <input type="text" id="meas-label" placeholder="es. lato cucina" style="width:100%; padding:12px 16px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; color:var(--text-bright); font-size:16px; font-weight:600; outline:none;">
+    <div class="modal-actions" style="margin-top:24px;">
+      <button class="btn-cancel" onclick="cancelMeasModal()">Annulla</button>
+      <button class="btn-confirm" onclick="confirmMeasModal()">Salva</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ==========================================
 // STATE
 // ==========================================
-const STEPS = [
+const STEPS_DESKTOP = [
   { id: 1, label: 'Caricamento PDF' },
   { id: 2, label: 'Calibrazione & Superfici' },
   { id: 3, label: 'Indicazione Nord' },
@@ -878,6 +1001,15 @@ const STEPS = [
   { id: 5, label: 'Dettagli Immobile' },
   { id: 6, label: 'Riepilogo & Output' }
 ];
+const STEPS_MOBILE = [
+  { id: 1, label: 'Caricamento PDF' },
+  { id: 2, label: 'Misure dal cantiere' },
+  { id: 5, label: 'Dettagli Immobile' },
+  { id: 6, label: 'Riepilogo & Output' }
+];
+const isMobile = window.matchMedia('(max-width: 768px)').matches;
+const STEPS = isMobile ? STEPS_MOBILE : STEPS_DESKTOP;
+const VALID_STEP_IDS = STEPS.map(s => s.id);
 
 const CATEGORIES = {
   abitazione:   { label: 'Abitazione',   fill: 'rgba(239,68,68,0.25)',   stroke: '#ef4444' },
@@ -922,6 +1054,15 @@ let mousePos = null;
 let shapeIdCounter = 0;
 let pendingShape = null;
 
+// Mobile measurements state (per page)
+let measurements = [];           // [{ id, points: [A,B], real_value, label }]
+let measIdCounter = 0;
+let pendingMeasPoints = [];      // current 2 tap points
+let pendingMeas = null;          // staged measurement awaiting modal confirmation
+// Touch state
+let touchStart = null;           // {x,y,t} for tap detection
+let pinchStart = null;           // {dist, midX, midY, zoom, sl, st}
+
 // Zoom & Pan
 let zoomLevel = 1.0;
 let isPanning = false;
@@ -945,7 +1086,9 @@ function savePageState() {
     shapes: JSON.parse(JSON.stringify(shapes)),
     scalePPM: scalePPM,
     shapeIdCounter: shapeIdCounter,
-    currentPoints: JSON.parse(JSON.stringify(currentPoints))
+    currentPoints: JSON.parse(JSON.stringify(currentPoints)),
+    measurements: JSON.parse(JSON.stringify(measurements)),
+    measIdCounter: measIdCounter
   };
 }
 
@@ -956,11 +1099,15 @@ function loadPageState(pageIndex) {
     scalePPM = ps.scalePPM;
     shapeIdCounter = ps.shapeIdCounter;
     currentPoints = JSON.parse(JSON.stringify(ps.currentPoints));
+    measurements = ps.measurements ? JSON.parse(JSON.stringify(ps.measurements)) : [];
+    measIdCounter = ps.measIdCounter || 0;
   } else {
     shapes = [];
     scalePPM = null;
     shapeIdCounter = 0;
     currentPoints = [];
+    measurements = [];
+    measIdCounter = 0;
   }
   mousePos = null;
   currentTool = null;
@@ -978,6 +1125,7 @@ function loadPageState(pageIndex) {
   }
   updateTotals();
   renderShapesList();
+  renderMeasListMobile();
 }
 
 // ==========================================
@@ -1063,6 +1211,15 @@ function renderStepper() {
 
 function goToStep(n) {
   if (n < 1 || n > 6) return;
+
+  // On mobile, skip steps 3 (Nord) and 4 (Confini): redirect forward/back
+  if (!VALID_STEP_IDS.includes(n)) {
+    const direction = n > currentStep ? 1 : -1;
+    let next = n + direction;
+    while (next >= 1 && next <= 6 && !VALID_STEP_IDS.includes(next)) next += direction;
+    if (!VALID_STEP_IDS.includes(next)) return;
+    n = next;
+  }
 
   // Save current page state when leaving step 2
   if (currentStep === 2) {
@@ -1588,8 +1745,95 @@ function redrawCanvas() {
     });
   }
 
+  // Saved mobile measurements
+  measurements.forEach((m, idx) => drawMeasurement(m, idx + 1));
+
+  // Pending tap points (mobile)
+  if (pendingMeasPoints.length > 0) {
+    pendingMeasPoints.forEach(p => {
+      ctx.beginPath();
+      ctx.fillStyle = '#10b981';
+      ctx.arc(p.x, p.y, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+    if (pendingMeasPoints.length === 2) {
+      ctx.beginPath();
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.moveTo(pendingMeasPoints[0].x, pendingMeasPoints[0].y);
+      ctx.lineTo(pendingMeasPoints[1].x, pendingMeasPoints[1].y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
   // Update canvas display size
   updateCanvasSize();
+}
+
+function drawMeasurement(m, num) {
+  if (!m.points || m.points.length !== 2) return;
+  const a = m.points[0], b = m.points[1];
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#D4AF37';
+  ctx.lineWidth = 3;
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  // Endpoint dots
+  ctx.fillStyle = '#D4AF37';
+  [a, b].forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  // Tick marks perpendicular at endpoints
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const tx = -dy / len * 10, ty = dx / len * 10;
+  ctx.beginPath();
+  ctx.moveTo(a.x - tx, a.y - ty); ctx.lineTo(a.x + tx, a.y + ty);
+  ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x + tx, b.y + ty);
+  ctx.stroke();
+  // Label
+  const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+  const fontSize = Math.max(16, Math.min(32, canvas.width / 45));
+  const label = (m.real_value != null ? m.real_value + ' m' : '?') + (m.label ? '  ('+m.label+')' : '');
+  ctx.font = 'bold ' + fontSize + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Background pill
+  const pad = 6;
+  const w = ctx.measureText(label).width + pad * 2;
+  const h = fontSize + pad * 1.4;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  roundRect(ctx, cx - w/2, cy - h/2 - 14, w, h, 6, true, false);
+  ctx.fillStyle = '#D4AF37';
+  ctx.fillText(label, cx, cy - 14);
+  // Number badge near endpoint A
+  ctx.fillStyle = '#D4AF37';
+  ctx.beginPath();
+  ctx.arc(a.x, a.y, 11, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.font = 'bold ' + Math.round(fontSize*0.7) + 'px sans-serif';
+  ctx.fillText(String(num), a.x, a.y);
+}
+
+function roundRect(c, x, y, w, h, r, fill, stroke) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y); c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r); c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h); c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r); c.quadraticCurveTo(x, y, x + r, y);
+  if (fill) c.fill();
+  if (stroke) c.stroke();
 }
 
 function updateCanvasSize() {
@@ -2129,6 +2373,26 @@ function buildJSON() {
   // All polygons from all pages
   const allPolygons = getAllShapesFlat();
 
+  // All mobile measurements from all pages
+  savePageState();
+  const allMeasurements = [];
+  for (let i = 0; i < totalPages; i++) {
+    const ps = pageStates[i];
+    if (ps && ps.measurements && ps.measurements.length > 0) {
+      const src = allPageSources[i];
+      ps.measurements.forEach((m, idx) => {
+        allMeasurements.push({
+          id: allMeasurements.length + 1,
+          punti: m.points,
+          misura_m: m.real_value,
+          etichetta: m.label || null,
+          pagina: i,
+          pagina_label: src ? src.fileName : ('Pagina ' + (i + 1))
+        });
+      });
+    }
+  }
+
   // Per-page scales
   const scalePerPage = [];
   for (let i = 0; i < totalPages; i++) {
@@ -2155,6 +2419,7 @@ function buildJSON() {
         pagina_label: s.pageLabel
       }))
     },
+    misure_cantiere: allMeasurements,
     pagine: scalePerPage,
     nord: selectedNord || null,
     confini: confiniData,
@@ -2431,12 +2696,172 @@ function exportJSON() {
 }
 
 // ==========================================
+// MOBILE: TOUCH + SNAP + MEASUREMENT TOOL
+// ==========================================
+const SNAP_RADIUS_PX = 28;     // search radius in canvas pixels
+const SNAP_LUMA_MAX  = 110;    // pixel is "dark" below this luminance (0-255)
+const TAP_MAX_MOVE   = 10;     // px movement threshold to count as tap
+const TAP_MAX_TIME   = 400;    // ms
+
+function snapToNearestDarkPixel(x, y) {
+  if (!bgImage || !canvas.width) return { x, y };
+  const r = SNAP_RADIUS_PX;
+  const x0 = Math.max(0, Math.floor(x - r));
+  const y0 = Math.max(0, Math.floor(y - r));
+  const x1 = Math.min(canvas.width  - 1, Math.ceil(x + r));
+  const y1 = Math.min(canvas.height - 1, Math.ceil(y + r));
+  if (x1 <= x0 || y1 <= y0) return { x, y };
+  let data;
+  try {
+    data = ctx.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+  } catch (e) { return { x, y }; }
+  const w = x1 - x0, h = y1 - y0;
+  let bestX = x, bestY = y, bestScore = Infinity;
+  for (let yy = 0; yy < h; yy++) {
+    for (let xx = 0; xx < w; xx++) {
+      const i = (yy * w + xx) * 4;
+      const luma = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+      if (luma > SNAP_LUMA_MAX) continue;
+      const dx = (xx + x0) - x, dy = (yy + y0) - y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > r) continue;
+      const score = dist + luma * 0.05; // prefer nearer + darker
+      if (score < bestScore) {
+        bestScore = score; bestX = xx + x0; bestY = yy + y0;
+      }
+    }
+  }
+  return { x: bestX, y: bestY };
+}
+
+function getCanvasCoordsFromXY(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width / rect.width;
+  const sy = canvas.height / rect.height;
+  return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+}
+
+function placeMobileTapPoint(clientX, clientY) {
+  const raw = getCanvasCoordsFromXY(clientX, clientY);
+  if (raw.x < 0 || raw.y < 0 || raw.x > canvas.width || raw.y > canvas.height) return;
+  const snapped = snapToNearestDarkPixel(raw.x, raw.y);
+  pendingMeasPoints.push(snapped);
+  if (pendingMeasPoints.length === 2) {
+    pendingMeas = { id: ++measIdCounter, points: pendingMeasPoints.slice() };
+    document.getElementById('meas-value').value = '';
+    document.getElementById('meas-label').value = '';
+    document.getElementById('meas-modal').classList.remove('hidden');
+    setTimeout(() => document.getElementById('meas-value').focus(), 100);
+  }
+  redrawCanvas();
+}
+
+function confirmMeasModal() {
+  if (!pendingMeas) { document.getElementById('meas-modal').classList.add('hidden'); return; }
+  const v = parseFloat(document.getElementById('meas-value').value);
+  const lbl = document.getElementById('meas-label').value.trim();
+  if (isNaN(v) || v <= 0) { alert('Inserisci una misura valida.'); return; }
+  pendingMeas.real_value = parseFloat(v.toFixed(3));
+  pendingMeas.label = lbl || null;
+  measurements.push(pendingMeas);
+  pendingMeas = null;
+  pendingMeasPoints = [];
+  document.getElementById('meas-modal').classList.add('hidden');
+  redrawCanvas();
+  renderMeasListMobile();
+}
+
+function cancelMeasModal() {
+  pendingMeas = null;
+  pendingMeasPoints = [];
+  document.getElementById('meas-modal').classList.add('hidden');
+  redrawCanvas();
+}
+
+function deleteMeasurement(id) {
+  measurements = measurements.filter(m => m.id !== id);
+  redrawCanvas();
+  renderMeasListMobile();
+}
+
+function renderMeasListMobile() {
+  const el = document.getElementById('meas-list-mobile');
+  if (!el) return;
+  if (measurements.length === 0) {
+    el.innerHTML = '<div class="ml-empty">Nessuna misura inserita</div>';
+    return;
+  }
+  let html = '';
+  measurements.forEach((m, idx) => {
+    const lbl = m.label ? ' — ' + m.label : '';
+    html += '<div class="meas-item">'
+      + '<span class="mi-num">#' + (idx + 1) + '</span>'
+      + '<span class="mi-val">' + (m.real_value != null ? m.real_value.toFixed(2) + ' m' : '-') + lbl + '</span>'
+      + '<button class="mi-del" onclick="deleteMeasurement(' + m.id + ')" title="Elimina">&times;</button>'
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
+// ----- Touch handlers on canvas -----
+canvas.addEventListener('touchstart', function(e) {
+  if (!isMobile) return;
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    touchStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+    pinchStart = null;
+  } else if (e.touches.length === 2) {
+    e.preventDefault();
+    const t1 = e.touches[0], t2 = e.touches[1];
+    const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    const area = document.getElementById('canvas-area');
+    pinchStart = {
+      dist: dist,
+      midX: (t1.clientX + t2.clientX) / 2,
+      midY: (t1.clientY + t2.clientY) / 2,
+      zoom: zoomLevel,
+      sl: area.scrollLeft, st: area.scrollTop
+    };
+    touchStart = null;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', function(e) {
+  if (!isMobile) return;
+  if (e.touches.length === 2 && pinchStart) {
+    e.preventDefault();
+    const t1 = e.touches[0], t2 = e.touches[1];
+    const newDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    const factor = newDist / pinchStart.dist;
+    const newZoom = Math.max(0.1, Math.min(8, pinchStart.zoom * factor));
+    zoomLevel = newZoom;
+    document.getElementById('zoom-label').textContent = Math.round(zoomLevel * 100) + '%';
+    redrawCanvas();
+  } else if (e.touches.length === 1 && touchStart) {
+    // Single-finger: let native scroll handle pan; just track movement to cancel the tap
+    const t = e.touches[0];
+    const dx = t.clientX - touchStart.x, dy = t.clientY - touchStart.y;
+    if (Math.hypot(dx, dy) > TAP_MAX_MOVE) touchStart.moved = true;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', function(e) {
+  if (!isMobile) return;
+  if (touchStart && !touchStart.moved && (Date.now() - touchStart.t) < TAP_MAX_TIME) {
+    placeMobileTapPoint(touchStart.x, touchStart.y);
+  }
+  touchStart = null;
+  pinchStart = null;
+}, { passive: false });
+
+// ==========================================
 // INIT
 // ==========================================
 renderStepper();
 initCompass();
 initConfini();
 updateTotals();
+renderMeasListMobile();
 
 </script>
 </body>
