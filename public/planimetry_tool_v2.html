@@ -208,7 +208,10 @@
   .btn-sm.danger { border-color: var(--red); color: var(--red); }
   .btn-sm.danger:hover { background: rgba(239,68,68,0.15); }
 
-  /* Canvas area */
+  /* Canvas area - deterministic layout: wrapper has explicit pixel size set
+     by JS, frame is absolutely positioned and centered inside the wrapper.
+     Avoids flex + margin:auto + max-content edge cases that left horizontal
+     scroll broken on some mobile browsers. */
   .canvas-area-wrapper {
     flex: 1; position: relative; overflow: hidden;
   }
@@ -219,15 +222,13 @@
     touch-action: none;
   }
   .canvas-wrapper {
-    min-width: 100%; min-height: 100%;
-    width: max-content; height: max-content;
-    display: flex; padding: 40px;
-    box-sizing: border-box;
+    position: relative;
+    width: 100%; height: 100%;  /* JS overrides with explicit pixel size */
   }
   .canvas-frame {
-    margin: auto; position: relative; background: #222;
+    position: absolute;
+    background: #222;
     box-shadow: 0 8px 40px rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden;
-    flex-shrink: 0;
   }
   #planimetry-canvas { display: block; touch-action: none; -webkit-user-select: none; user-select: none; }
 
@@ -2024,18 +2025,24 @@ function updateCanvasSize() {
   const styledH = canvas.height * zoomLevel;
   canvas.style.width = styledW + 'px';
   canvas.style.height = styledH + 'px';
-  // Force the wrapper to size to canvas + padding so canvas-area gets a
-  // proper scrollable region in both axes. CSS-only solutions
-  // (max-content, flex-shrink) didn't reliably trigger horizontal scroll
-  // on some mobile browsers.
+  // Deterministic layout: size the wrapper to max(canvas + padding, area)
+  // and absolutely position the frame at its center. This is independent of
+  // flex / margin:auto / max-content quirks across mobile browsers.
   const wrapper = document.querySelector('.canvas-wrapper');
-  if (wrapper) {
+  const frame = document.getElementById('canvas-frame');
+  if (wrapper && frame) {
     const area = wrapper.parentElement;
     const minW = area ? area.clientWidth  : 0;
     const minH = area ? area.clientHeight : 0;
-    const padding = 80; // 40px each side
-    wrapper.style.width  = Math.max(styledW + padding, minW) + 'px';
-    wrapper.style.height = Math.max(styledH + padding, minH) + 'px';
+    const padding = 80; // 40px each side, when canvas is bigger than area
+    const wrapperW = Math.max(styledW + padding, minW);
+    const wrapperH = Math.max(styledH + padding, minH);
+    wrapper.style.width  = wrapperW + 'px';
+    wrapper.style.height = wrapperH + 'px';
+    frame.style.width  = styledW + 'px';
+    frame.style.height = styledH + 'px';
+    frame.style.left   = ((wrapperW - styledW) / 2) + 'px';
+    frame.style.top    = ((wrapperH - styledH) / 2) + 'px';
   }
   if (currentTool === 'pan') {
     canvas.style.cursor = isPanning ? 'grabbing' : 'grab';
