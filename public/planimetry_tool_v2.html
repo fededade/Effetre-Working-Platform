@@ -1318,6 +1318,11 @@ function goToStep(n) {
     if (sb) sb.classList.remove('expanded');
   }
   renderStepper();
+  if (n === 2 && canvas.width > 0 && canvas.height > 0) {
+    // Wait one frame so the layout (display:flex, height:100%, body.step-2-mobile)
+    // settles before we measure clientWidth/Height inside fitToScreen.
+    requestAnimationFrame(() => requestAnimationFrame(fitToScreen));
+  }
   if (n === 5) initStep5MultiLevel();
   if (n === 6) buildSummary();
 }
@@ -1390,8 +1395,9 @@ async function handleFiles(files) {
   updatePageIndicator();
 
   if (currentStep === 1) {
-    fitToScreen();
-    // Show preview thumbnail and proceed button (don't auto-advance)
+    // Don't call fitToScreen() here: the canvas-area in Step 2 is hidden
+    // (clientWidth/Height === 0) which would make zoomLevel negative and
+    // collapse the canvas to 0x0. Fit happens on Step 2 entry instead.
     updateUploadPreview();
   }
 }
@@ -1695,20 +1701,18 @@ canvasArea.addEventListener('mousedown', function(e) {
   canvasArea.style.cursor = 'grabbing';
 });
 
-canvasArea.addEventListener('mousemove', function(e) {
+// Track mousemove / mouseup on document so the pan keeps working even when
+// the cursor leaves the canvas-area while dragging.
+document.addEventListener('mousemove', function(e) {
   if (!isPanning) return;
   canvasArea.scrollLeft = panStart.sl - (e.clientX - panStart.x);
-  canvasArea.scrollTop = panStart.st - (e.clientY - panStart.y);
+  canvasArea.scrollTop  = panStart.st - (e.clientY - panStart.y);
 });
 
-canvasArea.addEventListener('mouseup', function(e) {
+document.addEventListener('mouseup', function() {
   if (!isPanning) return;
   isPanning = false;
   canvasArea.style.cursor = currentTool === 'pan' ? 'grab' : '';
-});
-
-canvasArea.addEventListener('mouseleave', function() {
-  isPanning = false;
 });
 
 // Prevent default middle-click autoscroll behavior
@@ -1716,11 +1720,12 @@ canvasArea.addEventListener('auxclick', function(e) {
   if (e.button === 1) e.preventDefault();
 });
 
-// Mouse wheel zoom
+// Mouse wheel zoom (anchored at the cursor position)
 canvasArea.addEventListener('wheel', function(e) {
   e.preventDefault();
-  const delta = e.deltaY > 0 ? -0.1 : 0.1;
-  changeZoom(delta);
+  // Use a multiplicative step so feel is consistent at every zoom level
+  const factor = e.deltaY > 0 ? (1 / 1.12) : 1.12;
+  setZoom(zoomLevel * factor, e.clientX, e.clientY);
 }, { passive: false });
 
 // --- REDRAW ---
@@ -2036,22 +2041,59 @@ function updateCanvasSize() {
 }
 
 // --- Zoom ---
-function changeZoom(delta) {
-  zoomLevel = Math.max(0.1, Math.min(5, zoomLevel + delta));
+// Apply a zoom while keeping the content point under (focusClientX, focusClientY)
+// stationary on screen. If focus coords are omitted, zooms around the viewport center.
+function setZoom(newZoom, focusClientX, focusClientY) {
+  newZoom = Math.max(0.1, Math.min(8, newZoom));
+  const area = document.getElementById('canvas-area');
+  if (!area) return;
+  const areaRect = area.getBoundingClientRect();
+  // Default focus = visible center of the canvas-area
+  if (focusClientX == null) focusClientX = areaRect.left + area.clientWidth / 2;
+  if (focusClientY == null) focusClientY = areaRect.top  + area.clientHeight / 2;
+  // Content coordinates (canvas-space) currently under the focus point
+  const canvasRect = canvas.getBoundingClientRect();
+  const oldZoom = zoomLevel || 1;
+  const contentX = (focusClientX - canvasRect.left) / oldZoom;
+  const contentY = (focusClientY - canvasRect.top)  / oldZoom;
+
+  zoomLevel = newZoom;
   document.getElementById('zoom-label').textContent = Math.round(zoomLevel * 100) + '%';
+  // Resize canvas + wrapper synchronously so we can re-measure scroll geometry
+  updateCanvasSize();
+
+  // After resize, place the same content point back under the focus on screen
+  const newCanvasRect = canvas.getBoundingClientRect();
+  const targetScreenX = newCanvasRect.left + contentX * newZoom;
+  const targetScreenY = newCanvasRect.top  + contentY * newZoom;
+  area.scrollLeft += targetScreenX - focusClientX;
+  area.scrollTop  += targetScreenY - focusClientY;
+
   redrawCanvas();
+}
+
+function changeZoom(delta) {
+  setZoom(zoomLevel + delta);
 }
 
 function fitToScreen() {
   const area = document.getElementById('canvas-area');
-  const padW = 80, padH = 80;
-  const maxW = area.clientWidth - padW;
-  const maxH = area.clientHeight - padH;
+  if (!area) return;
+  // Bail out if the area is not laid out yet (e.g. Step 2 not active).
+  // Otherwise clientWidth/Height = 0 produces a negative zoomLevel and a 0-sized canvas.
+  if (area.clientWidth <= 0 || area.clientHeight <= 0) return;
   if (canvas.width === 0 || canvas.height === 0) return;
+  const padW = 80, padH = 80;
+  const maxW = Math.max(50, area.clientWidth  - padW);
+  const maxH = Math.max(50, area.clientHeight - padH);
   const sw = maxW / canvas.width;
   const sh = maxH / canvas.height;
-  zoomLevel = Math.min(sw, sh, 1.5);
+  zoomLevel = Math.max(0.1, Math.min(sw, sh, 1.5));
   document.getElementById('zoom-label').textContent = Math.round(zoomLevel * 100) + '%';
+  updateCanvasSize();
+  // Center the canvas in the scroll area
+  area.scrollLeft = Math.max(0, (area.scrollWidth  - area.clientWidth)  / 2);
+  area.scrollTop  = Math.max(0, (area.scrollHeight - area.clientHeight) / 2);
   redrawCanvas();
 }
 
