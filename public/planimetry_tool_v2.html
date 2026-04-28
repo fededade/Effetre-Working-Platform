@@ -3195,10 +3195,15 @@ _canvasAreaForTouch.addEventListener('touchmove', function(e) {
 
     zoomLevel = newZoom;
     document.getElementById('zoom-label').textContent = Math.round(zoomLevel * 100) + '%';
-    // Apply size change synchronously so we can measure
-    canvas.style.width = (canvas.width * zoomLevel) + 'px';
-    canvas.style.height = (canvas.height * zoomLevel) + 'px';
-    // Adjust scroll so the content point originally under midpoint stays under the current midpoint
+    // Resize BOTH the canvas style AND the canvas-wrapper so that:
+    //  - the wrapper grows with the canvas and gives the canvas-area a
+    //    proper scrollable region (otherwise the right side stays clipped
+    //    and pan has no scroll range to work with),
+    //  - margin:auto on canvas-frame keeps centering instead of collapsing
+    //    to the left when the canvas exceeds the wrapper.
+    updateCanvasSize();
+    // Adjust scroll so the content point originally under the pinch midpoint
+    // stays under the (moving) current midpoint of the two fingers.
     const rect = canvas.getBoundingClientRect();
     const targetScreenX = rect.left + pinchStart.contentMidX * newZoom;
     const targetScreenY = rect.top + pinchStart.contentMidY * newZoom;
