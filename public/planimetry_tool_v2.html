@@ -788,16 +788,6 @@
             <span class="sep"></span>
             <button onclick="fitToScreen()" title="Adatta">&#11036;</button>
           </div>
-
-          <!-- Debug overlay (toggle by tapping on it). Live state of layout. -->
-          <div id="debug-overlay" style="
-            position:absolute; top:8px; left:8px; z-index:60;
-            background:rgba(0,0,0,0.85); color:#0f0; font-family:monospace;
-            font-size:10px; line-height:1.3; padding:6px 8px; border-radius:6px;
-            pointer-events:auto; max-width:60vw; white-space:pre-wrap;
-            word-break:break-all; box-sizing:border-box;
-            border:1px solid #0f0;
-          " onclick="this.style.display='none'">init</div>
         </div>
       </div>
     </div>
@@ -2105,12 +2095,11 @@ function changeZoom(delta) {
   setZoom(zoomLevel + delta);
 }
 
-let _fitRunCount = 0;
 function fitToScreen() {
   const area = document.getElementById('canvas-area');
-  if (!area) { updateDebugOverlay('fit: no area'); return; }
-  if (area.clientWidth <= 0 || area.clientHeight <= 0) { updateDebugOverlay('fit: area 0x0'); return; }
-  if (canvas.width === 0 || canvas.height === 0) { updateDebugOverlay('fit: canvas 0x0'); return; }
+  if (!area) return;
+  if (area.clientWidth <= 0 || area.clientHeight <= 0) return;
+  if (canvas.width === 0 || canvas.height === 0) return;
   const padW = 80, padH = 80;
   const maxW = Math.max(50, area.clientWidth  - padW);
   const maxH = Math.max(50, area.clientHeight - padH);
@@ -2122,8 +2111,6 @@ function fitToScreen() {
   area.scrollLeft = Math.max(0, (area.scrollWidth  - area.clientWidth)  / 2);
   area.scrollTop  = Math.max(0, (area.scrollHeight - area.clientHeight) / 2);
   redrawCanvas();
-  _fitRunCount++;
-  updateDebugOverlay('fit#' + _fitRunCount);
 }
 
 // --- Gauss Shoelace Area (current page) ---
@@ -3308,7 +3295,6 @@ renderMeasListMobile();
   let lastW = 0, lastH = 0;
   const ro = new ResizeObserver(() => {
     const w = area.clientWidth, h = area.clientHeight;
-    updateDebugOverlay('RO ' + w + 'x' + h);
     if (w === lastW && h === lastH) return;
     const wasZero = (lastW === 0 || lastH === 0);
     lastW = w; lastH = h;
@@ -3319,37 +3305,6 @@ renderMeasListMobile();
     }
   });
   ro.observe(area);
-})();
-
-function updateDebugOverlay(tag) {
-  const el = document.getElementById('debug-overlay');
-  if (!el) return;
-  const area = document.getElementById('canvas-area');
-  // Walk up the ancestor chain and report each element's clientWidth so we
-  // can find which level is responsible for the canvas-area being wider
-  // than the device viewport.
-  const win = window.innerWidth + 'x' + window.innerHeight;
-  const docEl = document.documentElement.clientWidth;
-  const body = document.body.clientWidth;
-  const mainContent = document.querySelector('.main-content');
-  const stepPanel = document.querySelector('.step-panel.active');
-  const canvasLayout = document.querySelector('.canvas-layout');
-  const areaWrapper = document.querySelector('.canvas-area-wrapper');
-  const cw = (e) => e ? e.clientWidth : '?';
-  el.textContent =
-    '[' + (tag || '-') + '] step:' + currentStep + ' zoom:' + zoomLevel.toFixed(3) +
-    '\nwin:' + win + ' docEl:' + docEl + ' body:' + body +
-    '\nmain:' + cw(mainContent) + ' panel:' + cw(stepPanel) +
-    '\nlayout:' + cw(canvasLayout) + ' areaWrap:' + cw(areaWrapper) +
-    '\narea:' + (area ? area.clientWidth + 'x' + area.clientHeight : '?') +
-    ' scroll:' + (area ? area.scrollWidth + 'x' + area.scrollHeight + '@' + area.scrollLeft + ',' + area.scrollTop : '?');
-}
-// Initial overlay paint
-updateDebugOverlay('boot');
-// Update overlay on canvas-area scroll
-(function() {
-  const area = document.getElementById('canvas-area');
-  if (area) area.addEventListener('scroll', () => updateDebugOverlay('scroll'), { passive: true });
 })();
 
 </script>
