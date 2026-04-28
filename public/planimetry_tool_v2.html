@@ -3080,15 +3080,24 @@ function endMeasureGesture() {
   if (!measGesture) return;
   const a = measGesture.startPoint;
   const rawB = measGesture.currentEndPoint;
-  // Apply snap only on release for fluidity
-  const b = snapToNearestDarkPixel(rawB.x, rawB.y);
   measGesture = null;
   updateLoupe();
   // Need a real distance: ignore if release happened before any drag
-  if (Math.hypot(a.x - b.x, a.y - b.y) < 8) {
+  const dx = rawB.x - a.x, dy = rawB.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 8) {
     redrawCanvas();
     return;
   }
+  // Snap B to a dark pixel, then project the snapped result back onto the
+  // line A->rawB. This keeps the released segment parallel to the direction
+  // the user dragged (i.e. parallel to the wall they were tracing) - radial
+  // snap on its own would tug the end-point perpendicular to that line and
+  // make a horizontal/vertical drag come out oblique.
+  const snapped = snapToNearestDarkPixel(rawB.x, rawB.y);
+  const ux = dx / len, uy = dy / len;
+  const t = (snapped.x - a.x) * ux + (snapped.y - a.y) * uy;
+  const b = { x: a.x + ux * t, y: a.y + uy * t };
   pendingMeas = { id: ++measIdCounter, points: [a, b] };
   document.getElementById('meas-value').value = '';
   document.getElementById('meas-label').value = '';
