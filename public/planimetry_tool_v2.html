@@ -1834,7 +1834,9 @@ function redrawCanvas() {
   }
 
   // Saved mobile measurements
-  measurements.forEach((m, idx) => drawMeasurement(m, idx + 1));
+  // Saved mobile measurements (with anti-overlap label layout)
+  const placements = computeMeasurementLayouts(measurements);
+  placements.forEach(p => drawMeasurement(p));
 
   // Active long-press measurement gesture (mobile)
   if (measGesture && measGesture.startPoint) {
@@ -1865,9 +1867,84 @@ function redrawCanvas() {
   updateCanvasSize();
 }
 
-function drawMeasurement(m, num) {
-  if (!m.points || m.points.length !== 2) return;
-  const a = m.points[0], b = m.points[1];
+function rectsOverlap(a, b, padding) {
+  const p = padding || 0;
+  return !(a.x + a.w + p < b.x || a.x > b.x + b.w + p ||
+           a.y + a.h + p < b.y || a.y > b.y + b.h + p);
+}
+
+function computeMeasurementLayouts(meas) {
+  if (!meas || meas.length === 0) return [];
+  const placed = [];           // already-positioned label rects (for overlap test)
+  const placements = [];
+  const fontSize = Math.max(16, Math.min(32, canvas.width / 45));
+  const pad = 6;
+  ctx.save();
+  ctx.font = 'bold ' + fontSize + 'px sans-serif';
+  meas.forEach((m, i) => {
+    if (!m.points || m.points.length !== 2) return;
+    const a = m.points[0], b = m.points[1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+    const label = (m.real_value != null ? m.real_value + ' m' : '?') + (m.label ? '  (' + m.label + ')' : '');
+    const labelW = ctx.measureText(label).width + pad * 2;
+    const labelH = fontSize + pad * 1.4;
+    // Two perpendicular candidate sides, prefer "up" first
+    let n1x = -dy / len, n1y = dx / len;
+    if (n1y > 0) { n1x = -n1x; n1y = -n1y; }
+    const n2x = -n1x, n2y = -n1y;
+    const baseOffset = labelH / 2 + 22;
+    const stepOffset = labelH + 6;
+
+    let chosen = null;
+    // Try inline (no offset) only when the label fits within the line span
+    if (labelW <= len * 0.7) {
+      const labelX = cx, labelY = cy - 14;
+      const rect = { x: labelX - labelW/2, y: labelY - labelH/2, w: labelW, h: labelH };
+      if (!placed.some(r => rectsOverlap(rect, r, 4))) {
+        chosen = { labelX, labelY, drawLeader: false, rect };
+      }
+    }
+    // Otherwise try perpendicular sides at increasing distance
+    if (!chosen) {
+      const sides = [
+        { nx: n1x, ny: n1y },
+        { nx: n2x, ny: n2y }
+      ];
+      for (let attempt = 0; attempt < 12 && !chosen; attempt++) {
+        const offset = baseOffset + attempt * stepOffset;
+        for (let s = 0; s < sides.length && !chosen; s++) {
+          const labelX = cx + sides[s].nx * offset;
+          const labelY = cy + sides[s].ny * offset;
+          const rect = { x: labelX - labelW/2, y: labelY - labelH/2, w: labelW, h: labelH };
+          if (!placed.some(r => rectsOverlap(rect, r, 4))) {
+            chosen = { labelX, labelY, drawLeader: true, rect };
+          }
+        }
+      }
+      // Fallback: accept the first overlapping perpendicular position
+      if (!chosen) {
+        const labelX = cx + n1x * baseOffset;
+        const labelY = cy + n1y * baseOffset;
+        const rect = { x: labelX - labelW/2, y: labelY - labelH/2, w: labelW, h: labelH };
+        chosen = { labelX, labelY, drawLeader: true, rect };
+      }
+    }
+    placed.push(chosen.rect);
+    placements.push({
+      a, b, num: i + 1,
+      cx, cy, len, label, labelW, labelH,
+      labelX: chosen.labelX, labelY: chosen.labelY,
+      drawLeader: chosen.drawLeader, fontSize
+    });
+  });
+  ctx.restore();
+  return placements;
+}
+
+function drawMeasurement(p) {
+  const a = p.a, b = p.b;
   // Line
   ctx.beginPath();
   ctx.strokeStyle = '#D4AF37';
@@ -1877,68 +1954,46 @@ function drawMeasurement(m, num) {
   ctx.stroke();
   // Endpoint dots
   ctx.fillStyle = '#D4AF37';
-  [a, b].forEach(p => {
+  [a, b].forEach(pt => {
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
     ctx.fill();
   });
   // Tick marks perpendicular at endpoints
   const dx = b.x - a.x, dy = b.y - a.y;
-  const len = Math.hypot(dx, dy) || 1;
+  const len = p.len;
   const tx = -dy / len * 10, ty = dx / len * 10;
   ctx.beginPath();
   ctx.moveTo(a.x - tx, a.y - ty); ctx.lineTo(a.x + tx, a.y + ty);
   ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x + tx, b.y + ty);
   ctx.stroke();
-  // Label
-  const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
-  const fontSize = Math.max(16, Math.min(32, canvas.width / 45));
-  const label = (m.real_value != null ? m.real_value + ' m' : '?') + (m.label ? '  ('+m.label+')' : '');
-  ctx.font = 'bold ' + fontSize + 'px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const pad = 6;
-  const labelW = ctx.measureText(label).width + pad * 2;
-  const labelH = fontSize + pad * 1.4;
-  // If the label covers more than 70% of the line, push it out perpendicularly
-  // and connect with a leader line
-  let labelX, labelY, drawLeader = false;
-  if (labelW > len * 0.7) {
-    // Perpendicular unit vector pointing "up" in canvas space when possible
-    let nx = -dy / len, ny = dx / len;
-    if (ny > 0) { nx = -nx; ny = -ny; }
-    const offset = labelH / 2 + 22;
-    labelX = cx + nx * offset;
-    labelY = cy + ny * offset;
-    drawLeader = true;
-  } else {
-    labelX = cx;
-    labelY = cy - 14;
-  }
-  // Leader line first (so the pill sits on top of it)
-  if (drawLeader) {
+  // Leader
+  if (p.drawLeader) {
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(212,175,55,0.7)';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([4, 3]);
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(labelX, labelY);
+    ctx.moveTo(p.cx, p.cy);
+    ctx.lineTo(p.labelX, p.labelY);
     ctx.stroke();
     ctx.setLineDash([]);
   }
-  // Background pill
+  // Pill + label
+  ctx.font = 'bold ' + p.fontSize + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  roundRect(ctx, labelX - labelW/2, labelY - labelH/2, labelW, labelH, 6, true, false);
+  roundRect(ctx, p.labelX - p.labelW/2, p.labelY - p.labelH/2, p.labelW, p.labelH, 6, true, false);
   ctx.fillStyle = '#D4AF37';
-  ctx.fillText(label, labelX, labelY);
+  ctx.fillText(p.label, p.labelX, p.labelY);
   // Number badge near endpoint A
   ctx.fillStyle = '#D4AF37';
   ctx.beginPath();
   ctx.arc(a.x, a.y, 11, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#000';
-  ctx.font = 'bold ' + Math.round(fontSize*0.7) + 'px sans-serif';
-  ctx.fillText(String(num), a.x, a.y);
+  ctx.font = 'bold ' + Math.round(p.fontSize * 0.7) + 'px sans-serif';
+  ctx.fillText(String(p.num), a.x, a.y);
 }
 
 function roundRect(c, x, y, w, h, r, fill, stroke) {
@@ -1953,8 +2008,23 @@ function roundRect(c, x, y, w, h, r, fill, stroke) {
 }
 
 function updateCanvasSize() {
-  canvas.style.width = (canvas.width * zoomLevel) + 'px';
-  canvas.style.height = (canvas.height * zoomLevel) + 'px';
+  const styledW = canvas.width * zoomLevel;
+  const styledH = canvas.height * zoomLevel;
+  canvas.style.width = styledW + 'px';
+  canvas.style.height = styledH + 'px';
+  // Force the wrapper to size to canvas + padding so canvas-area gets a
+  // proper scrollable region in both axes. CSS-only solutions
+  // (max-content, flex-shrink) didn't reliably trigger horizontal scroll
+  // on some mobile browsers.
+  const wrapper = document.querySelector('.canvas-wrapper');
+  if (wrapper) {
+    const area = wrapper.parentElement;
+    const minW = area ? area.clientWidth  : 0;
+    const minH = area ? area.clientHeight : 0;
+    const padding = 80; // 40px each side
+    wrapper.style.width  = Math.max(styledW + padding, minW) + 'px';
+    wrapper.style.height = Math.max(styledH + padding, minH) + 'px';
+  }
   if (currentTool === 'pan') {
     canvas.style.cursor = isPanning ? 'grabbing' : 'grab';
   } else if (currentTool) {
