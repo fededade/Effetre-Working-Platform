@@ -3318,33 +3318,24 @@ function updateDebugOverlay(tag) {
   const el = document.getElementById('debug-overlay');
   if (!el) return;
   const area = document.getElementById('canvas-area');
-  const wrapper = document.querySelector('.canvas-wrapper');
-  const frame = document.getElementById('canvas-frame');
-  const a = area ? (area.clientWidth + 'x' + area.clientHeight) : '?';
-  const sa = area ? (area.scrollWidth + 'x' + area.scrollHeight + ' @' + area.scrollLeft + ',' + area.scrollTop) : '?';
-  const w = wrapper ? (wrapper.offsetWidth + 'x' + wrapper.offsetHeight) : '?';
-  const f = frame ? ('left:' + frame.style.left + ' top:' + frame.style.top + ' ' + frame.offsetWidth + 'x' + frame.offsetHeight) : '?';
-  // Probe the rendered canvas: is it actually showing pixels at (10,10)?
-  let canvasPixel = '?';
-  try {
-    const data = ctx.getImageData(10, 10, 1, 1).data;
-    canvasPixel = 'rgba(' + data[0] + ',' + data[1] + ',' + data[2] + ',' + data[3] + ')';
-  } catch (e) { canvasPixel = 'err:' + e.message; }
-  // Probe computed style of frame
-  let fComp = '?';
-  if (frame) {
-    const cs = getComputedStyle(frame);
-    fComp = 'pos:' + cs.position + ' disp:' + cs.display + ' vis:' + cs.visibility + ' op:' + cs.opacity;
-  }
-  const c = (canvas.width + 'x' + canvas.height) + ' style:' + canvas.style.width + 'x' + canvas.style.height;
-  const bg = bgImage ? (bgImage.width || bgImage.naturalWidth || '?') : 'NULL';
+  // Walk up the ancestor chain and report each element's clientWidth so we
+  // can find which level is responsible for the canvas-area being wider
+  // than the device viewport.
+  const win = window.innerWidth + 'x' + window.innerHeight;
+  const docEl = document.documentElement.clientWidth;
+  const body = document.body.clientWidth;
+  const mainContent = document.querySelector('.main-content');
+  const stepPanel = document.querySelector('.step-panel.active');
+  const canvasLayout = document.querySelector('.canvas-layout');
+  const areaWrapper = document.querySelector('.canvas-area-wrapper');
+  const cw = (e) => e ? e.clientWidth : '?';
   el.textContent =
     '[' + (tag || '-') + '] step:' + currentStep + ' zoom:' + zoomLevel.toFixed(3) +
-    '\narea:' + a + ' scroll:' + sa +
-    '\nwrap:' + w + ' frame:' + f +
-    '\nframe computed: ' + fComp +
-    '\ncanv:' + c + ' bg:' + bg +
-    '\npixel(10,10):' + canvasPixel;
+    '\nwin:' + win + ' docEl:' + docEl + ' body:' + body +
+    '\nmain:' + cw(mainContent) + ' panel:' + cw(stepPanel) +
+    '\nlayout:' + cw(canvasLayout) + ' areaWrap:' + cw(areaWrapper) +
+    '\narea:' + (area ? area.clientWidth + 'x' + area.clientHeight : '?') +
+    ' scroll:' + (area ? area.scrollWidth + 'x' + area.scrollHeight + '@' + area.scrollLeft + ',' + area.scrollTop : '?');
 }
 // Initial overlay paint
 updateDebugOverlay('boot');
