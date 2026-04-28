@@ -229,6 +229,8 @@
     position: absolute;
     background: #222;
     box-shadow: 0 8px 40px rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden;
+    /* DEBUG: 2px magenta border so we can SEE the frame even if canvas is empty */
+    outline: 2px solid magenta;
   }
   #planimetry-canvas { display: block; touch-action: none; -webkit-user-select: none; user-select: none; }
 
@@ -3322,13 +3324,27 @@ function updateDebugOverlay(tag) {
   const sa = area ? (area.scrollWidth + 'x' + area.scrollHeight + ' @' + area.scrollLeft + ',' + area.scrollTop) : '?';
   const w = wrapper ? (wrapper.offsetWidth + 'x' + wrapper.offsetHeight) : '?';
   const f = frame ? ('left:' + frame.style.left + ' top:' + frame.style.top + ' ' + frame.offsetWidth + 'x' + frame.offsetHeight) : '?';
+  // Probe the rendered canvas: is it actually showing pixels at (10,10)?
+  let canvasPixel = '?';
+  try {
+    const data = ctx.getImageData(10, 10, 1, 1).data;
+    canvasPixel = 'rgba(' + data[0] + ',' + data[1] + ',' + data[2] + ',' + data[3] + ')';
+  } catch (e) { canvasPixel = 'err:' + e.message; }
+  // Probe computed style of frame
+  let fComp = '?';
+  if (frame) {
+    const cs = getComputedStyle(frame);
+    fComp = 'pos:' + cs.position + ' disp:' + cs.display + ' vis:' + cs.visibility + ' op:' + cs.opacity;
+  }
   const c = (canvas.width + 'x' + canvas.height) + ' style:' + canvas.style.width + 'x' + canvas.style.height;
   const bg = bgImage ? (bgImage.width || bgImage.naturalWidth || '?') : 'NULL';
   el.textContent =
     '[' + (tag || '-') + '] step:' + currentStep + ' zoom:' + zoomLevel.toFixed(3) +
     '\narea:' + a + ' scroll:' + sa +
     '\nwrap:' + w + ' frame:' + f +
-    '\ncanv:' + c + ' bg:' + bg;
+    '\nframe computed: ' + fComp +
+    '\ncanv:' + c + ' bg:' + bg +
+    '\npixel(10,10):' + canvasPixel;
 }
 // Initial overlay paint
 updateDebugOverlay('boot');
