@@ -1479,21 +1479,18 @@ async function renderPageByIndex(pageIndex) {
     const renderCtx = canvas.getContext('2d');
     await page.render({ canvasContext: renderCtx, viewport }).promise;
 
-    // Save as image for redraw overlay
+    // Snapshot the rendered PDF into an offscreen canvas and use it directly
+    // as bgImage. drawImage() accepts HTMLCanvasElement, so we skip the
+    // toDataURL() -> Image roundtrip entirely. That roundtrip was the main
+    // failure mode on mobile (iOS Safari) for big PDFs: the multi-MB data URL
+    // could fail to load into an Image silently (onerror), leaving bgImage
+    // null and every subsequent redrawCanvas() showing a black frame.
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = canvas.width;
     tempCanvas.height = canvas.height;
     tempCanvas.getContext('2d').drawImage(canvas, 0, 0);
-    await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        bgImage = img;
-        redrawCanvas();
-        resolve();
-      };
-      img.onerror = () => resolve();
-      img.src = tempCanvas.toDataURL();
-    });
+    bgImage = tempCanvas;
+    redrawCanvas();
 
   } else if (src.type === 'image') {
     await new Promise((resolve) => {
