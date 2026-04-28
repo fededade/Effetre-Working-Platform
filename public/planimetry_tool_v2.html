@@ -218,7 +218,10 @@
     background-size: 20px 20px;
   }
   .canvas-wrapper {
-    min-width: 100%; min-height: 100%; display: flex; padding: 40px;
+    min-width: 100%; min-height: 100%;
+    width: max-content; height: max-content;
+    display: flex; padding: 40px;
+    box-sizing: border-box;
   }
   .canvas-frame {
     margin: auto; position: relative; background: #222;
@@ -1894,14 +1897,40 @@ function drawMeasurement(m, num) {
   ctx.font = 'bold ' + fontSize + 'px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  // Background pill
   const pad = 6;
-  const w = ctx.measureText(label).width + pad * 2;
-  const h = fontSize + pad * 1.4;
-  ctx.fillStyle = 'rgba(0,0,0,0.75)';
-  roundRect(ctx, cx - w/2, cy - h/2 - 14, w, h, 6, true, false);
+  const labelW = ctx.measureText(label).width + pad * 2;
+  const labelH = fontSize + pad * 1.4;
+  // If the label covers more than 70% of the line, push it out perpendicularly
+  // and connect with a leader line
+  let labelX, labelY, drawLeader = false;
+  if (labelW > len * 0.7) {
+    // Perpendicular unit vector pointing "up" in canvas space when possible
+    let nx = -dy / len, ny = dx / len;
+    if (ny > 0) { nx = -nx; ny = -ny; }
+    const offset = labelH / 2 + 22;
+    labelX = cx + nx * offset;
+    labelY = cy + ny * offset;
+    drawLeader = true;
+  } else {
+    labelX = cx;
+    labelY = cy - 14;
+  }
+  // Leader line first (so the pill sits on top of it)
+  if (drawLeader) {
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(212,175,55,0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(labelX, labelY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  // Background pill
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  roundRect(ctx, labelX - labelW/2, labelY - labelH/2, labelW, labelH, 6, true, false);
   ctx.fillStyle = '#D4AF37';
-  ctx.fillText(label, cx, cy - 14);
+  ctx.fillText(label, labelX, labelY);
   // Number badge near endpoint A
   ctx.fillStyle = '#D4AF37';
   ctx.beginPath();
