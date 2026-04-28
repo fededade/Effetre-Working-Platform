@@ -359,7 +359,8 @@
 
   /* ===== STEP 5: DETTAGLI ===== */
   .detail-group { margin-bottom: 24px; }
-  .detail-group label { display: block; font-size: 13px; font-weight: 700; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-group label,
+  .detail-group .group-label { display: block; font-size: 13px; font-weight: 700; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
   .detail-group select, .detail-group textarea, .detail-group input[type=number] {
     width: 100%; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border);
     border-radius: 10px; color: var(--text); font-size: 14px; outline: none; font-family: inherit;
@@ -834,7 +835,7 @@
           <p class="subtitle">Informazioni aggiuntive sulla propriet&agrave;</p>
 
           <div class="detail-group">
-            <label>Tipologia</label>
+            <label for="tipologia">Tipologia</label>
             <select id="tipologia">
               <option value="">-- Seleziona --</option>
               <option value="Appartamento">Appartamento</option>
@@ -844,7 +845,7 @@
           </div>
 
           <div class="detail-group">
-            <label>Ascensore</label>
+            <div class="group-label">Ascensore</div>
             <div class="radio-group">
               <div class="radio-option" onclick="selectRadio(this,'ascensore','Si')" data-field="ascensore">S&igrave;</div>
               <div class="radio-option" onclick="selectRadio(this,'ascensore','No')" data-field="ascensore">No</div>
@@ -852,7 +853,7 @@
           </div>
 
           <div class="detail-group">
-            <label>Ristrutturazioni Recenti</label>
+            <div class="group-label">Ristrutturazioni Recenti</div>
             <div class="radio-group">
               <div class="radio-option" onclick="selectRadio(this,'ristrutturazione','Si')" data-field="ristrutturazione">S&igrave;</div>
               <div class="radio-option" onclick="selectRadio(this,'ristrutturazione','No')" data-field="ristrutturazione">No</div>
@@ -860,7 +861,7 @@
           </div>
 
           <div class="detail-group" id="ristrutturazione-desc-group" style="display:none;">
-            <label>Descrizione Ristrutturazione</label>
+            <label for="ristrutturazione-desc">Descrizione Ristrutturazione</label>
             <textarea id="ristrutturazione-desc" placeholder="Descrivi le ristrutturazioni effettuate..."></textarea>
           </div>
 
@@ -868,11 +869,11 @@
           <div class="detail-section-title">Piani del Fabbricato</div>
           <div class="detail-row">
             <div class="detail-group">
-              <label>Piani fuori terra</label>
+              <label for="piani-fuori-terra">Piani fuori terra</label>
               <input type="number" id="piani-fuori-terra" min="1" max="10" value="1">
             </div>
             <div class="detail-group">
-              <label>Piani entroterra</label>
+              <label for="piani-entroterra">Piani entroterra</label>
               <input type="number" id="piani-entroterra" min="0" max="5" value="0">
             </div>
           </div>
@@ -882,7 +883,7 @@
             <div class="detail-section-title">Composizione dell'Appartamento</div>
 
             <div class="detail-group">
-              <label>Ingresso</label>
+              <div class="group-label">Ingresso</div>
               <div class="radio-group">
                 <div class="radio-option" onclick="selectRadio(this,'ingresso','Ingresso su disimpegno')" data-field="ingresso">Su disimpegno</div>
                 <div class="radio-option" onclick="selectRadio(this,'ingresso','Ingresso su soggiorno')" data-field="ingresso">Su soggiorno</div>
@@ -890,7 +891,7 @@
             </div>
 
             <div class="detail-group">
-              <label>Soggiorno</label>
+              <div class="group-label">Soggiorno</div>
               <div class="radio-group">
                 <div class="radio-option" onclick="selectRadio(this,'soggiorno','Si')" data-field="soggiorno">S&igrave;</div>
                 <div class="radio-option" onclick="selectRadio(this,'soggiorno','No')" data-field="soggiorno">No</div>
@@ -898,7 +899,7 @@
             </div>
 
             <div class="detail-group">
-              <label>Cucina / Angolo cottura</label>
+              <div class="group-label">Cucina / Angolo cottura</div>
               <label class="checkbox-toggle" id="toggle-cucina" onclick="toggleCucina('cucina_abitabile')">
                 <input type="checkbox" id="chk-cucina-abitabile"> Cucina abitabile
               </label>
@@ -911,7 +912,7 @@
             </div>
 
             <div class="detail-group">
-              <label>Numero camere</label>
+              <div class="group-label">Numero camere</div>
               <div class="radio-group" style="flex-wrap:wrap;">
                 <div class="radio-option" onclick="selectRadio(this,'num_camere','1')" data-field="num_camere">1</div>
                 <div class="radio-option" onclick="selectRadio(this,'num_camere','2')" data-field="num_camere">2</div>
@@ -924,7 +925,7 @@
             </div>
 
             <div class="detail-group">
-              <label>Numero servizi igienici</label>
+              <label for="num-servizi-igienici">Numero servizi igienici</label>
               <select id="num-servizi-igienici">
                 <option value="">-- Seleziona --</option>
                 <option value="1">1</option>
@@ -1008,7 +1009,7 @@
   <div class="modal-box">
     <h3>&#128207; Calibrazione Scala</h3>
     <p>Inserisci la lunghezza reale del segmento tracciato</p>
-    <label>Lunghezza Reale</label>
+    <label for="cal-length">Lunghezza Reale</label>
     <input type="number" id="cal-length" value="10" min="0.01" step="0.01">
     <div class="unit-hint">metri</div>
     <div class="modal-actions">
@@ -1023,7 +1024,7 @@
   <div class="modal-box">
     <h3>&#127970; Seleziona Piano</h3>
     <p>A quale piano si riferisce l'area appena disegnata?</p>
-    <label>Piano</label>
+    <label for="piano-select">Piano</label>
     <select id="piano-select" style="width:100%; padding:12px 16px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; color:var(--text-bright); font-size:16px; font-weight:600; outline:none; margin-bottom:8px;">
       <option value="Piano seminterrato">Piano seminterrato</option>
       <option value="Piano terra">Piano terra</option>
@@ -1053,10 +1054,10 @@
   <div class="modal-box">
     <h3>&#128207; Inserisci misura</h3>
     <p>Distanza tra i due punti rilevata in cantiere</p>
-    <label>Misura reale (metri)</label>
+    <label for="meas-value">Misura reale (metri)</label>
     <input type="number" id="meas-value" value="" min="0.01" step="0.01" inputmode="decimal" placeholder="es. 3.20">
     <div class="unit-hint">metri</div>
-    <label style="margin-top:8px;">Etichetta (opzionale)</label>
+    <label for="meas-label" style="margin-top:8px;">Etichetta (opzionale)</label>
     <input type="text" id="meas-label" placeholder="es. lato cucina" style="width:100%; padding:12px 16px; background:var(--bg-input); border:1px solid var(--border); border-radius:10px; color:var(--text-bright); font-size:16px; font-weight:600; outline:none;">
     <div class="modal-actions" style="margin-top:24px;">
       <button class="btn-cancel" onclick="cancelMeasModal()">Annulla</button>
