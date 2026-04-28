@@ -216,6 +216,7 @@
     width: 100%; height: 100%; overflow: auto;
     background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
     background-size: 20px 20px;
+    touch-action: none;
   }
   .canvas-wrapper {
     min-width: 100%; min-height: 100%;
@@ -3093,8 +3094,9 @@ function renderMeasListMobile() {
   el.innerHTML = html;
 }
 
-// ----- Touch handlers on canvas -----
-canvas.addEventListener('touchstart', function(e) {
+// ----- Touch handlers on canvas-area (catch touches even on the padding/margins around the canvas) -----
+const _canvasAreaForTouch = document.getElementById('canvas-area');
+_canvasAreaForTouch.addEventListener('touchstart', function(e) {
   if (!isMobile) return;
   if (e.touches.length === 1) {
     const t = e.touches[0];
@@ -3128,7 +3130,7 @@ canvas.addEventListener('touchstart', function(e) {
   }
 }, { passive: false });
 
-canvas.addEventListener('touchmove', function(e) {
+_canvasAreaForTouch.addEventListener('touchmove', function(e) {
   if (!isMobile) return;
 
   if (e.touches.length === 2 && pinchStart) {
@@ -3187,7 +3189,7 @@ canvas.addEventListener('touchmove', function(e) {
   }
 }, { passive: false });
 
-canvas.addEventListener('touchend', function(e) {
+_canvasAreaForTouch.addEventListener('touchend', function(e) {
   if (!isMobile) return;
   if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
   if (measGesture) {
@@ -3204,7 +3206,7 @@ canvas.addEventListener('touchend', function(e) {
   }
 }, { passive: false });
 
-canvas.addEventListener('touchcancel', function() {
+_canvasAreaForTouch.addEventListener('touchcancel', function() {
   if (!isMobile) return;
   if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
   cancelMeasureGesture();
