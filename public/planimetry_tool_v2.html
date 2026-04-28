@@ -235,17 +235,16 @@
     position: absolute;
     background: #222;
     box-shadow: 0 8px 40px rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden;
-    /* DEBUG: 2px magenta border so we can SEE the frame even if canvas is empty */
-    outline: 2px solid magenta;
   }
   #planimetry-canvas { display: block; touch-action: none; -webkit-user-select: none; user-select: none; }
 
   /* Floating toolbar */
   .float-toolbar {
     position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 30;
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+    max-width: calc(100% - 24px);
     background: rgba(22,33,62,0.92); backdrop-filter: blur(12px);
-    border: 1px solid var(--border); border-radius: 40px; padding: 8px 20px;
+    border: 1px solid var(--border); border-radius: 22px; padding: 8px 14px;
   }
   .float-toolbar button {
     width: 36px; height: 36px; border-radius: 50%; border: none;
@@ -257,6 +256,37 @@
   .float-toolbar button.active { background: var(--gold); color: #000; }
   .float-toolbar .sep { width: 1px; height: 24px; background: var(--border); }
   .float-toolbar .zoom-label { font-size: 13px; font-family: monospace; color: var(--text); width: 50px; text-align: center; font-weight: 700; }
+  /* Color & width swatch buttons - show the current selection */
+  .float-toolbar .swatch-color {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5); padding: 0;
+    background-clip: content-box;
+  }
+  .float-toolbar .swatch-color.active,
+  .float-toolbar .swatch-color:hover { border-color: var(--gold); background-color: transparent; }
+  .float-toolbar .swatch-width {
+    flex-direction: column; gap: 0;
+  }
+  .float-toolbar .swatch-width .dot {
+    background: currentColor; border-radius: 50%; display: block;
+  }
+  /* Picker popups (color / width) anchored above the toolbar */
+  .picker-popup {
+    position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%); z-index: 40;
+    background: rgba(22,33,62,0.96); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px;
+    display: flex; gap: 10px; align-items: center;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+  }
+  .picker-popup.hidden { display: none; }
+  .picker-popup button {
+    width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25);
+    cursor: pointer; padding: 0; transition: transform 0.15s, border-color 0.15s;
+  }
+  .picker-popup button.active { border-color: var(--gold); transform: scale(1.12); }
+  .picker-popup button:hover { transform: scale(1.08); }
+  .picker-popup .width-btn { background: transparent; color: var(--text); display: flex; align-items: center; justify-content: center; }
+  .picker-popup .width-btn .dot { background: currentColor; border-radius: 50%; display: block; }
 
   /* Floating hint */
   .float-hint {
@@ -782,12 +812,23 @@
           <div class="float-toolbar">
             <button id="btn-pan" onclick="selectTool('pan')" title="Sposta">&#9995;</button>
             <span class="sep"></span>
+            <button id="btn-pen" onclick="selectTool('pen')" title="Penna">&#9999;&#65039;</button>
+            <button id="btn-highlighter" onclick="selectTool('highlighter')" title="Evidenziatore">&#128396;&#65039;</button>
+            <button id="btn-eraser" onclick="selectTool('eraser')" title="Gomma">&#129529;</button>
+            <button id="btn-color" class="swatch-color" onclick="toggleColorPicker(event)" title="Colore"></button>
+            <button id="btn-width" class="swatch-width" onclick="toggleWidthPicker(event)" title="Spessore"><span class="dot"></span></button>
+            <span class="sep"></span>
             <button onclick="changeZoom(-0.15)" title="Zoom -">&#128270;-</button>
             <span class="zoom-label" id="zoom-label">100%</span>
             <button onclick="changeZoom(0.15)" title="Zoom +">&#128270;+</button>
             <span class="sep"></span>
             <button onclick="fitToScreen()" title="Adatta">&#11036;</button>
           </div>
+
+          <!-- Color picker (populated by JS based on active drawing tool) -->
+          <div id="color-picker" class="picker-popup hidden"></div>
+          <!-- Width picker (populated by JS based on active drawing tool) -->
+          <div id="width-picker" class="picker-popup hidden"></div>
         </div>
       </div>
     </div>
@@ -1155,6 +1196,27 @@ let zoomLevel = 1.0;
 let isPanning = false;
 let panStart = { x: 0, y: 0, sl: 0, st: 0 };
 
+// Free-hand annotations (per page) - pen + highlighter strokes
+// Each stroke = { id, type: 'pen'|'highlighter', color, width, points: [{x,y}, ...] }
+let annotations = [];
+let annoIdCounter = 0;
+let drawingStroke = null;   // active stroke being drawn (mouse/touch dragging)
+let isErasing = false;      // mouse/touch drag in eraser mode
+const PEN_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#000000', '#D4AF37'];
+const HIGHLIGHTER_COLORS = [
+  'rgba(255,235,59,0.45)',  // yellow
+  'rgba(249,168,212,0.45)', // pink
+  'rgba(134,239,172,0.45)', // green
+  'rgba(147,197,253,0.45)', // blue
+  'rgba(253,186,116,0.45)'  // orange
+];
+const PEN_WIDTHS = [2, 4, 6, 10];
+const HIGHLIGHTER_WIDTHS = [12, 20, 30, 40];
+let penColor = PEN_COLORS[0];
+let penWidth = PEN_WIDTHS[1];
+let highlighterColor = HIGHLIGHTER_COLORS[0];
+let highlighterWidth = HIGHLIGHTER_WIDTHS[1];
+
 // Form state
 let selectedNord = '';
 let confiniData = {};
@@ -1175,7 +1237,9 @@ function savePageState() {
     shapeIdCounter: shapeIdCounter,
     currentPoints: JSON.parse(JSON.stringify(currentPoints)),
     measurements: JSON.parse(JSON.stringify(measurements)),
-    measIdCounter: measIdCounter
+    measIdCounter: measIdCounter,
+    annotations: JSON.parse(JSON.stringify(annotations)),
+    annoIdCounter: annoIdCounter
   };
 }
 
@@ -1188,6 +1252,8 @@ function loadPageState(pageIndex) {
     currentPoints = JSON.parse(JSON.stringify(ps.currentPoints));
     measurements = ps.measurements ? JSON.parse(JSON.stringify(ps.measurements)) : [];
     measIdCounter = ps.measIdCounter || 0;
+    annotations = ps.annotations ? JSON.parse(JSON.stringify(ps.annotations)) : [];
+    annoIdCounter = ps.annoIdCounter || 0;
   } else {
     shapes = [];
     scalePPM = null;
@@ -1195,6 +1261,8 @@ function loadPageState(pageIndex) {
     currentPoints = [];
     measurements = [];
     measIdCounter = 0;
+    annotations = [];
+    annoIdCounter = 0;
   }
   mousePos = null;
   currentTool = null;
@@ -1555,10 +1623,15 @@ function selectTool(tool) {
   document.querySelectorAll('.tool-btn, .float-toolbar button').forEach(b => b.classList.remove('active'));
   currentPoints = [];
   mousePos = null;
+  // Cancel any in-progress free-hand drawing when switching tools
+  drawingStroke = null;
+  isErasing = false;
+  hideAllPickers();
 
   if (currentTool === tool) {
     currentTool = null;
     hideHint();
+    refreshDrawingSwatches();
     redrawCanvas();
     return;
   }
@@ -1576,11 +1649,214 @@ function selectTool(tool) {
     showHint('Traccia una linea su un elemento di misura nota. Shift = linee ortogonali.');
   } else if (tool === 'pan') {
     showHint('Trascina per spostare la mappa');
+  } else if (tool === 'pen') {
+    showHint('Disegna a mano libera. Tocca il colore o lo spessore per cambiarli.');
+  } else if (tool === 'highlighter') {
+    showHint('Evidenzia a mano libera. Tocca il colore o lo spessore per cambiarli.');
+  } else if (tool === 'eraser') {
+    showHint('Tocca o trascina su un tratto per cancellarlo.');
   } else {
     showHint('Clicca per posizionare i vertici. Shift = linee ortogonali. Doppio click per chiudere.');
   }
 
+  refreshDrawingSwatches();
   redrawCanvas();
+}
+
+// ==========================================
+// FREE-HAND ANNOTATION TOOLS (pen / highlighter / eraser)
+// ==========================================
+function activeStrokeColor()  { return currentTool === 'highlighter' ? highlighterColor : penColor; }
+function activeStrokeWidth()  { return currentTool === 'highlighter' ? highlighterWidth : penWidth; }
+function isDrawTool(t)        { return t === 'pen' || t === 'highlighter'; }
+function isAnnoTool(t)        { return isDrawTool(t) || t === 'eraser'; }
+
+function refreshDrawingSwatches() {
+  const colorBtn = document.getElementById('btn-color');
+  const widthBtn = document.getElementById('btn-width');
+  if (!colorBtn || !widthBtn) return;
+  const c = activeStrokeColor();
+  const w = activeStrokeWidth();
+  colorBtn.style.backgroundColor = c;
+  // Width swatch: show a dot sized roughly to the current width
+  const dot = widthBtn.querySelector('.dot');
+  if (dot) {
+    const dotPx = Math.max(3, Math.min(18, w));
+    dot.style.width  = dotPx + 'px';
+    dot.style.height = dotPx + 'px';
+  }
+  // Disable color/width pickers visually when drawing tools aren't active
+  const enabled = isDrawTool(currentTool);
+  colorBtn.style.opacity = enabled ? '1' : '0.45';
+  widthBtn.style.opacity = enabled ? '1' : '0.45';
+}
+
+function hideAllPickers() {
+  const cp = document.getElementById('color-picker');
+  const wp = document.getElementById('width-picker');
+  if (cp) cp.classList.add('hidden');
+  if (wp) wp.classList.add('hidden');
+}
+
+function toggleColorPicker(e) {
+  if (e) e.stopPropagation();
+  if (!isDrawTool(currentTool)) {
+    // Auto-activate pen if no draw tool is active so the picker is meaningful
+    selectTool('pen');
+  }
+  const wp = document.getElementById('width-picker');
+  if (wp) wp.classList.add('hidden');
+  const cp = document.getElementById('color-picker');
+  if (!cp) return;
+  if (!cp.classList.contains('hidden')) { cp.classList.add('hidden'); return; }
+  // Build swatches for the current tool
+  const colors = currentTool === 'highlighter' ? HIGHLIGHTER_COLORS : PEN_COLORS;
+  const active = activeStrokeColor();
+  cp.innerHTML = '';
+  colors.forEach(c => {
+    const b = document.createElement('button');
+    b.style.background = c;
+    if (c === active) b.classList.add('active');
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); pickColor(c); });
+    cp.appendChild(b);
+  });
+  cp.classList.remove('hidden');
+}
+
+function pickColor(c) {
+  if (currentTool === 'highlighter') highlighterColor = c;
+  else penColor = c;
+  hideAllPickers();
+  refreshDrawingSwatches();
+}
+
+function toggleWidthPicker(e) {
+  if (e) e.stopPropagation();
+  if (!isDrawTool(currentTool)) selectTool('pen');
+  const cp = document.getElementById('color-picker');
+  if (cp) cp.classList.add('hidden');
+  const wp = document.getElementById('width-picker');
+  if (!wp) return;
+  if (!wp.classList.contains('hidden')) { wp.classList.add('hidden'); return; }
+  const widths = currentTool === 'highlighter' ? HIGHLIGHTER_WIDTHS : PEN_WIDTHS;
+  const active = activeStrokeWidth();
+  wp.innerHTML = '';
+  widths.forEach(w => {
+    const b = document.createElement('button');
+    b.className = 'width-btn';
+    if (w === active) b.classList.add('active');
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    const dotPx = Math.max(3, Math.min(20, w));
+    dot.style.width = dotPx + 'px';
+    dot.style.height = dotPx + 'px';
+    dot.style.color = activeStrokeColor();
+    b.appendChild(dot);
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); pickWidth(w); });
+    wp.appendChild(b);
+  });
+  wp.classList.remove('hidden');
+}
+
+function pickWidth(w) {
+  if (currentTool === 'highlighter') highlighterWidth = w;
+  else penWidth = w;
+  hideAllPickers();
+  refreshDrawingSwatches();
+}
+
+// Close pickers when tapping anywhere else
+document.addEventListener('click', function(ev) {
+  if (ev.target.closest('#color-picker') || ev.target.closest('#width-picker')) return;
+  if (ev.target.closest('#btn-color') || ev.target.closest('#btn-width')) return;
+  hideAllPickers();
+});
+
+// --- Stroke lifecycle ---
+function startStroke(coords) {
+  if (!isDrawTool(currentTool)) return;
+  drawingStroke = {
+    id: ++annoIdCounter,
+    type: currentTool,
+    color: activeStrokeColor(),
+    width: activeStrokeWidth(),
+    points: [coords]
+  };
+  redrawCanvas();
+}
+
+function extendStroke(coords) {
+  if (!drawingStroke) return;
+  const last = drawingStroke.points[drawingStroke.points.length - 1];
+  if (Math.hypot(coords.x - last.x, coords.y - last.y) < 1) return;
+  drawingStroke.points.push(coords);
+  redrawCanvas();
+}
+
+function endStroke() {
+  if (!drawingStroke) return;
+  if (drawingStroke.points.length >= 1) annotations.push(drawingStroke);
+  drawingStroke = null;
+  redrawCanvas();
+}
+
+// --- Eraser: hit-test pointer against existing strokes ---
+function eraseAt(coords) {
+  if (!annotations.length) return;
+  // Generous radius so finger-erase feels forgiving on mobile
+  const baseRadius = 18;
+  let removed = false;
+  for (let i = annotations.length - 1; i >= 0; i--) {
+    const s = annotations[i];
+    const r = baseRadius + s.width / 2;
+    let hit = false;
+    if (s.points.length === 1) {
+      const p = s.points[0];
+      hit = Math.hypot(p.x - coords.x, p.y - coords.y) <= r;
+    } else {
+      for (let j = 1; j < s.points.length; j++) {
+        if (segmentNearPoint(s.points[j-1], s.points[j], coords, r)) { hit = true; break; }
+      }
+    }
+    if (hit) { annotations.splice(i, 1); removed = true; }
+  }
+  if (removed) redrawCanvas();
+}
+
+function segmentNearPoint(a, b, p, r) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y) <= r;
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  if (t < 0) t = 0; else if (t > 1) t = 1;
+  const cx = a.x + dx * t, cy = a.y + dy * t;
+  return Math.hypot(p.x - cx, p.y - cy) <= r;
+}
+
+// Render a stroke onto a 2d context. Reused by canvas redraw and PDF export.
+function drawStroke(c, s) {
+  if (!s || !s.points || s.points.length === 0) return;
+  c.save();
+  c.strokeStyle = s.color;
+  c.lineWidth = s.width;
+  c.lineCap = 'round';
+  c.lineJoin = 'round';
+  if (s.type === 'highlighter') {
+    // Multiply blend so highlighter darkens existing pixels instead of
+    // covering them - same look as a real felt-tip highlighter.
+    c.globalCompositeOperation = 'multiply';
+  }
+  c.beginPath();
+  c.moveTo(s.points[0].x, s.points[0].y);
+  if (s.points.length === 1) {
+    // Single tap: draw a dot
+    const p = s.points[0];
+    c.lineTo(p.x + 0.01, p.y + 0.01);
+  } else {
+    for (let i = 1; i < s.points.length; i++) c.lineTo(s.points[i].x, s.points[i].y);
+  }
+  c.stroke();
+  c.restore();
 }
 
 function showHint(text) {
@@ -1633,6 +1909,19 @@ canvas.addEventListener('mousedown', function(e) {
   if (currentTool === 'pan' || !currentTool) return;
   let coords = getCanvasCoords(e);
 
+  // Free-hand drawing tools (desktop): start a stroke / start erasing
+  if (isDrawTool(currentTool)) {
+    e.preventDefault();
+    startStroke(coords);
+    return;
+  }
+  if (currentTool === 'eraser') {
+    e.preventDefault();
+    isErasing = true;
+    eraseAt(coords);
+    return;
+  }
+
   // Apply ortho snap with Shift
   if (e.shiftKey) {
     const anchor = getLastAnchor();
@@ -1657,6 +1946,18 @@ canvas.addEventListener('mousemove', function(e) {
   if (!currentTool || currentTool === 'pan') return;
   let coords = getCanvasCoords(e);
 
+  // Free-hand drawing tools: extend stroke / continue erasing while button is down
+  if (isDrawTool(currentTool) && drawingStroke) {
+    extendStroke(coords);
+    return;
+  }
+  if (currentTool === 'eraser' && isErasing) {
+    eraseAt(coords);
+    return;
+  }
+  // No active drag - drawing tools shouldn't update polygon preview
+  if (isAnnoTool(currentTool)) return;
+
   // Apply ortho snap with Shift
   if (e.shiftKey) {
     const anchor = getLastAnchor();
@@ -1665,6 +1966,13 @@ canvas.addEventListener('mousemove', function(e) {
 
   mousePos = coords;
   redrawCanvas();
+});
+
+// End free-hand stroke / eraser drag (listen on document so release outside
+// the canvas still finishes the gesture).
+document.addEventListener('mouseup', function() {
+  if (drawingStroke) endStroke();
+  if (isErasing) isErasing = false;
 });
 
 canvas.addEventListener('dblclick', function(e) {
@@ -1749,6 +2057,11 @@ function redrawCanvas() {
   if (bgImage) {
     ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
   }
+
+  // Free-hand annotations (pen + highlighter) sit between the background
+  // and the polygons so polygons / measurements remain readable on top.
+  annotations.forEach(s => drawStroke(ctx, s));
+  if (drawingStroke) drawStroke(ctx, drawingStroke);
 
   // Completed shapes
   shapes.forEach(shape => {
@@ -1892,14 +2205,16 @@ function rectsOverlap(a, b, padding) {
            a.y + a.h + p < b.y || a.y > b.y + b.h + p);
 }
 
-function computeMeasurementLayouts(meas) {
+function computeMeasurementLayouts(meas, c, cw) {
+  c = c || ctx;
+  cw = cw || canvas.width;
   if (!meas || meas.length === 0) return [];
   const placed = [];           // already-positioned label rects (for overlap test)
   const placements = [];
-  const fontSize = Math.max(16, Math.min(32, canvas.width / 45));
+  const fontSize = Math.max(16, Math.min(32, cw / 45));
   const pad = 6;
-  ctx.save();
-  ctx.font = 'bold ' + fontSize + 'px sans-serif';
+  c.save();
+  c.font = 'bold ' + fontSize + 'px sans-serif';
   meas.forEach((m, i) => {
     if (!m.points || m.points.length !== 2) return;
     const a = m.points[0], b = m.points[1];
@@ -1907,7 +2222,7 @@ function computeMeasurementLayouts(meas) {
     const len = Math.hypot(dx, dy) || 1;
     const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
     const label = (m.real_value != null ? m.real_value + ' m' : '?') + (m.label ? '  (' + m.label + ')' : '');
-    const labelW = ctx.measureText(label).width + pad * 2;
+    const labelW = c.measureText(label).width + pad * 2;
     const labelH = fontSize + pad * 1.4;
     // Two perpendicular candidate sides, prefer "up" first
     let n1x = -dy / len, n1y = dx / len;
@@ -1958,61 +2273,62 @@ function computeMeasurementLayouts(meas) {
       drawLeader: chosen.drawLeader, fontSize
     });
   });
-  ctx.restore();
+  c.restore();
   return placements;
 }
 
-function drawMeasurement(p) {
+function drawMeasurement(p, c) {
+  c = c || ctx;
   const a = p.a, b = p.b;
   // Line
-  ctx.beginPath();
-  ctx.strokeStyle = '#D4AF37';
-  ctx.lineWidth = 3;
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
+  c.beginPath();
+  c.strokeStyle = '#D4AF37';
+  c.lineWidth = 3;
+  c.moveTo(a.x, a.y);
+  c.lineTo(b.x, b.y);
+  c.stroke();
   // Endpoint dots
-  ctx.fillStyle = '#D4AF37';
+  c.fillStyle = '#D4AF37';
   [a, b].forEach(pt => {
-    ctx.beginPath();
-    ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
-    ctx.fill();
+    c.beginPath();
+    c.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+    c.fill();
   });
   // Tick marks perpendicular at endpoints
   const dx = b.x - a.x, dy = b.y - a.y;
   const len = p.len;
   const tx = -dy / len * 10, ty = dx / len * 10;
-  ctx.beginPath();
-  ctx.moveTo(a.x - tx, a.y - ty); ctx.lineTo(a.x + tx, a.y + ty);
-  ctx.moveTo(b.x - tx, b.y - ty); ctx.lineTo(b.x + tx, b.y + ty);
-  ctx.stroke();
+  c.beginPath();
+  c.moveTo(a.x - tx, a.y - ty); c.lineTo(a.x + tx, a.y + ty);
+  c.moveTo(b.x - tx, b.y - ty); c.lineTo(b.x + tx, b.y + ty);
+  c.stroke();
   // Leader
   if (p.drawLeader) {
-    ctx.beginPath();
-    ctx.strokeStyle = 'rgba(212,175,55,0.7)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 3]);
-    ctx.moveTo(p.cx, p.cy);
-    ctx.lineTo(p.labelX, p.labelY);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    c.beginPath();
+    c.strokeStyle = 'rgba(212,175,55,0.7)';
+    c.lineWidth = 1.5;
+    c.setLineDash([4, 3]);
+    c.moveTo(p.cx, p.cy);
+    c.lineTo(p.labelX, p.labelY);
+    c.stroke();
+    c.setLineDash([]);
   }
   // Pill + label
-  ctx.font = 'bold ' + p.fontSize + 'px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  roundRect(ctx, p.labelX - p.labelW/2, p.labelY - p.labelH/2, p.labelW, p.labelH, 6, true, false);
-  ctx.fillStyle = '#D4AF37';
-  ctx.fillText(p.label, p.labelX, p.labelY);
+  c.font = 'bold ' + p.fontSize + 'px sans-serif';
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillStyle = 'rgba(0,0,0,0.78)';
+  roundRect(c, p.labelX - p.labelW/2, p.labelY - p.labelH/2, p.labelW, p.labelH, 6, true, false);
+  c.fillStyle = '#D4AF37';
+  c.fillText(p.label, p.labelX, p.labelY);
   // Number badge near endpoint A
-  ctx.fillStyle = '#D4AF37';
-  ctx.beginPath();
-  ctx.arc(a.x, a.y, 11, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.font = 'bold ' + Math.round(p.fontSize * 0.7) + 'px sans-serif';
-  ctx.fillText(String(p.num), a.x, a.y);
+  c.fillStyle = '#D4AF37';
+  c.beginPath();
+  c.arc(a.x, a.y, 11, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = '#000';
+  c.font = 'bold ' + Math.round(p.fontSize * 0.7) + 'px sans-serif';
+  c.fillText(String(p.num), a.x, a.y);
 }
 
 function roundRect(c, x, y, w, h, r, fill, stroke) {
@@ -2321,6 +2637,9 @@ function deleteShape(id) {
 function undoAction() {
   if (currentPoints.length > 0) {
     currentPoints.pop();
+  } else if (annotations.length > 0) {
+    // Undo most recent free-hand stroke before falling back to polygons
+    annotations.pop();
   } else if (shapes.length > 0) {
     shapes.pop();
     updateTotals();
@@ -2330,10 +2649,12 @@ function undoAction() {
 }
 
 function resetAll() {
-  if (!confirm('Vuoi davvero resettare tutti i poligoni disegnati su questa pagina?')) return;
+  if (!confirm('Vuoi davvero resettare tutti i poligoni e le annotazioni di questa pagina?')) return;
   shapes = [];
   currentPoints = [];
   mousePos = null;
+  annotations = [];
+  drawingStroke = null;
   updateTotals();
   renderShapesList();
   redrawCanvas();
@@ -2764,6 +3085,11 @@ async function exportPlanimetryPDF() {
         continue; // skip unknown source types
       }
 
+      // --- Step 2a: free-hand annotations (pen + highlighter) below polygons ---
+      if (ps && ps.annotations && ps.annotations.length > 0) {
+        ps.annotations.forEach(s => drawStroke(offCtx, s));
+      }
+
       // --- Step 2: draw polygons on top ---
       if (ps && ps.shapes && ps.shapes.length > 0) {
         ps.shapes.forEach(function(shape) {
@@ -2801,6 +3127,12 @@ async function exportPlanimetryPDF() {
             offCtx.fill();
           });
         });
+      }
+
+      // --- Step 2b: measurements on top (with same anti-overlap layout) ---
+      if (ps && ps.measurements && ps.measurements.length > 0) {
+        var placements = computeMeasurementLayouts(ps.measurements, offCtx, cw);
+        placements.forEach(function(p) { drawMeasurement(p, offCtx); });
       }
 
       var planDataUrl = offCanvas.toDataURL('image/jpeg', 0.92);
@@ -3169,6 +3501,24 @@ _canvasAreaForTouch.addEventListener('touchstart', function(e) {
     const t = e.touches[0];
     touchStart = { x: t.clientX, y: t.clientY, t: Date.now(), moved: false };
     pinchStart = null;
+    // Free-hand drawing tools take priority over the measurement long-press
+    if (isDrawTool(currentTool)) {
+      e.preventDefault();
+      const coords = getCanvasCoordsFromXY(t.clientX, t.clientY);
+      if (coords.x >= 0 && coords.y >= 0 && coords.x < canvas.width && coords.y < canvas.height) {
+        startStroke(coords);
+      }
+      return;
+    }
+    if (currentTool === 'eraser') {
+      e.preventDefault();
+      const coords = getCanvasCoordsFromXY(t.clientX, t.clientY);
+      isErasing = true;
+      if (coords.x >= 0 && coords.y >= 0 && coords.x < canvas.width && coords.y < canvas.height) {
+        eraseAt(coords);
+      }
+      return;
+    }
     // Schedule long-press to start a measurement gesture
     if (longPressTimer) clearTimeout(longPressTimer);
     longPressTimer = setTimeout(() => {
@@ -3179,8 +3529,11 @@ _canvasAreaForTouch.addEventListener('touchstart', function(e) {
     }, LONG_PRESS_MS);
   } else if (e.touches.length === 2) {
     e.preventDefault();
-    // A second finger appeared: cancel any pending measurement / long-press
+    // A second finger appeared: cancel any pending measurement / long-press,
+    // and discard any in-progress free-hand stroke or eraser drag.
     cancelMeasureGesture();
+    if (drawingStroke) { drawingStroke = null; redrawCanvas(); }
+    isErasing = false;
     touchStart = null;
     const t1 = e.touches[0], t2 = e.touches[1];
     const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
@@ -3233,6 +3586,23 @@ _canvasAreaForTouch.addEventListener('touchmove', function(e) {
 
   if (e.touches.length === 1) {
     const t = e.touches[0];
+    // Free-hand drawing tools: extend the active stroke, never pan
+    if (drawingStroke && isDrawTool(currentTool)) {
+      e.preventDefault();
+      const coords = getCanvasCoordsFromXY(t.clientX, t.clientY);
+      if (coords.x >= 0 && coords.y >= 0 && coords.x < canvas.width && coords.y < canvas.height) {
+        extendStroke(coords);
+      }
+      return;
+    }
+    if (currentTool === 'eraser' && isErasing) {
+      e.preventDefault();
+      const coords = getCanvasCoordsFromXY(t.clientX, t.clientY);
+      if (coords.x >= 0 && coords.y >= 0 && coords.x < canvas.width && coords.y < canvas.height) {
+        eraseAt(coords);
+      }
+      return;
+    }
     if (measGesture) {
       // Active long-press drag: update endpoint, prevent native scroll
       e.preventDefault();
@@ -3264,6 +3634,8 @@ _canvasAreaForTouch.addEventListener('touchmove', function(e) {
 _canvasAreaForTouch.addEventListener('touchend', function(e) {
   if (!isMobile) return;
   if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  if (drawingStroke) endStroke();
+  if (isErasing) isErasing = false;
   if (measGesture) {
     endMeasureGesture();
   }
@@ -3281,6 +3653,8 @@ _canvasAreaForTouch.addEventListener('touchend', function(e) {
 _canvasAreaForTouch.addEventListener('touchcancel', function() {
   if (!isMobile) return;
   if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  if (drawingStroke) { drawingStroke = null; redrawCanvas(); }
+  isErasing = false;
   cancelMeasureGesture();
   touchStart = null;
   pinchStart = null;
@@ -3294,6 +3668,7 @@ initCompass();
 initConfini();
 updateTotals();
 renderMeasListMobile();
+refreshDrawingSwatches();
 
 // Safety net: when the canvas-area gains real dimensions for the first time
 // while Step 2 is active and a PDF is loaded, fit-to-screen. Also re-fits on
