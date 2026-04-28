@@ -1319,9 +1319,17 @@ function goToStep(n) {
   }
   renderStepper();
   if (n === 2 && canvas.width > 0 && canvas.height > 0) {
-    // Wait one frame so the layout (display:flex, height:100%, body.step-2-mobile)
-    // settles before we measure clientWidth/Height inside fitToScreen.
-    requestAnimationFrame(() => requestAnimationFrame(fitToScreen));
+    // Run fit synchronously so the FIRST paint already shows the planimetry
+    // correctly fitted (otherwise the canvas keeps its previous huge style
+    // size and lands off-screen for one frame before rAF fixes it).
+    // Reading clientWidth forces a layout pass so the freshly-shown
+    // canvas-area has real dimensions to measure against.
+    const _area = document.getElementById('canvas-area');
+    void (_area && _area.clientWidth);
+    fitToScreen();
+    // Re-fit after the layout fully settles (mobile bottom-sheet transition,
+    // viewport vh recalculation on iOS Safari, etc.).
+    requestAnimationFrame(() => fitToScreen());
   }
   if (n === 5) initStep5MultiLevel();
   if (n === 6) buildSummary();
@@ -3264,6 +3272,28 @@ initCompass();
 initConfini();
 updateTotals();
 renderMeasListMobile();
+
+// Safety net: when the canvas-area gains real dimensions for the first time
+// while Step 2 is active and a PDF is loaded, fit-to-screen. Also re-fits on
+// window/orientation changes and dev-tools toggles.
+(function installCanvasAreaResizeObserver() {
+  const area = document.getElementById('canvas-area');
+  if (!area || typeof ResizeObserver === 'undefined') return;
+  let lastW = 0, lastH = 0;
+  const ro = new ResizeObserver(() => {
+    const w = area.clientWidth, h = area.clientHeight;
+    if (w === lastW && h === lastH) return;
+    const wasZero = (lastW === 0 || lastH === 0);
+    lastW = w; lastH = h;
+    if (currentStep !== 2 || canvas.width === 0 || canvas.height === 0) return;
+    if (w === 0 || h === 0) return;
+    // First time the area becomes laid out, or a real size change: re-fit.
+    if (wasZero) {
+      fitToScreen();
+    }
+  });
+  ro.observe(area);
+})();
 
 </script>
 </body>
