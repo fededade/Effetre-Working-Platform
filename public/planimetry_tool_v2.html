@@ -1582,9 +1582,10 @@ async function applySessionSnapshot(snap) {
   // Without this, the underlying state is correct but the inputs look empty.
   applyFormDataToUI();
 
-  // Resume on the same step the user left from (default to step 2 once
-  // a planimetry exists, falling back to 1 if nothing loaded).
-  const targetStep = snap.currentStep || (totalPages > 0 ? 2 : 1);
+  // Always resume on the planimetria step (Step 2) so the user lands directly
+  // on the canvas regardless of where they were when they saved. Falls back
+  // to Step 1 only when no planimetry file is present in the snapshot.
+  const targetStep = totalPages > 0 ? 2 : 1;
   if (targetStep !== currentStep) {
     goToStep(targetStep);
   } else if (currentStep === 2) {
