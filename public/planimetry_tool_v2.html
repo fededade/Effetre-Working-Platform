@@ -655,6 +655,49 @@
 
   /* Default: desktop hides mobile-only */
   .mobile-only { display: none; }
+
+  /* Session controls (save / load / practice code) */
+  .practice-code-row {
+    display: flex; gap: 10px; align-items: center; justify-content: center;
+    margin: 14px 0 8px; flex-wrap: wrap;
+  }
+  .practice-code-row label {
+    font-size: 12px; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 1px; font-weight: 700;
+  }
+  .practice-code-row input {
+    width: 130px; padding: 10px 12px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: 8px; color: var(--text-bright);
+    font-size: 16px; font-weight: 700; text-align: center; outline: none;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .practice-code-row input:focus { border-color: var(--gold); }
+  .session-row {
+    display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap;
+  }
+  .btn-session {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; background: var(--bg-card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px; font-weight: 600;
+    cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .btn-session:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-session.primary { background: var(--gold); color: #000; border-color: var(--gold); }
+  .btn-session.primary:hover { background: #e8c84a; }
+
+  /* Header save button (always visible across steps) */
+  .header-save-btn {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; gap: 6px;
+  }
+  .header-save-btn:hover { border-color: var(--gold); color: var(--gold); }
+  .header-save-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  @media (max-width: 768px) {
+    .header-save-btn { right: 8px; padding: 6px 10px; font-size: 12px; }
+    .header-save-btn .lbl { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -663,6 +706,9 @@
   <!-- STEPPER BAR -->
   <div class="stepper-bar" id="stepper-bar">
     <button class="home-back-btn" onclick="goBackHome()" title="Torna alla home">&#8592; Home</button>
+    <button class="header-save-btn" id="btn-save-session" onclick="saveSession()" title="Salva sessione (.json)">
+      &#128190; <span class="lbl">Salva sessione</span>
+    </button>
   </div>
 
   <!-- MAIN CONTENT -->
@@ -679,9 +725,18 @@
         <div class="upload-box" id="upload-box">
           <h2>&#128205; Carica Planimetrie</h2>
           <p>Trascina qui uno o pi&ugrave; PDF / immagini delle planimetrie catastali, oppure clicca per selezionare</p>
+          <div class="practice-code-row">
+            <label for="practice-code">Codice pratica</label>
+            <input type="text" id="practice-code" placeholder="123.456" maxlength="7"
+                   inputmode="numeric" autocomplete="off" oninput="onPracticeCodeInput(event)">
+          </div>
           <button class="upload-btn" onclick="document.getElementById('file-input').click()">Seleziona File</button>
           <input type="file" id="file-input" accept="application/pdf,image/png,image/jpeg" multiple>
           <input type="file" id="file-input-add" accept="application/pdf,image/png,image/jpeg" multiple>
+          <input type="file" id="session-input" accept="application/json,.json" style="display:none;">
+          <div class="session-row">
+            <button class="btn-session" onclick="document.getElementById('session-input').click()">&#128193; Carica sessione</button>
+          </div>
           <div id="loaded-files-info" style="margin-top:20px; font-size:13px; color:var(--text-dim);"></div>
           <div id="upload-preview" style="display:none; margin-top:20px;"></div>
           <button class="add-pdf-btn" id="btn-add-more" style="display:none;" onclick="document.getElementById('file-input-add').click()">+ Aggiungi altro PDF</button>
@@ -1046,6 +1101,7 @@
           <div class="export-row">
             <button class="btn-export gold" onclick="exportJSON()">&#128190; Esporta JSON</button>
             <button class="btn-export outline" onclick="exportPlanimetryPDF()">&#128196; Scarica planimetria con superfici</button>
+            <button class="btn-export outline" onclick="saveSession()">&#128193; Salva sessione (.json)</button>
           </div>
 
           <div class="nav-buttons">
@@ -1168,8 +1224,15 @@ let currentStep = 1;
 let totalPages = 0;
 let currentPage = 0;
 
-// Multi-source page system: each entry = { type:'pdf'|'image', pdfDoc, pdfPageNum, imageUrl, fileName }
+// Multi-source page system: each entry = { type:'pdf'|'image', pdfDoc, pdfPageNum, imageUrl, fileName, sourceFileId }
 let allPageSources = [];
+
+// Original uploaded files, kept so the whole session can be serialized to a
+// single JSON. Each entry: { id, type:'pdf'|'image', name, buffer? (Uint8Array
+// for pdfs), dataUrl? (for images) }. Multiple allPageSources entries can
+// share the same sourceFileId (e.g. a multi-page PDF).
+let sourceFiles = [];
+let sourceFileIdCounter = 0;
 
 // Per-page persistent state: pageStates[pageIndex] = { shapes, scalePPM, shapeIdCounter, currentPoints }
 let pageStates = {};
@@ -1223,6 +1286,13 @@ let penColor = PEN_COLORS[0];
 let penWidth = PEN_WIDTHS[1];
 let highlighterColor = HIGHLIGHTER_COLORS[0];
 let highlighterWidth = HIGHLIGHTER_WIDTHS[1];
+
+// Practice code (e.g. "123.456") used as filename prefix for saved sessions.
+let practiceCode = '';
+
+// Schema version of the .json saved by saveSession() - bump if format changes.
+const SESSION_SCHEMA_VERSION = 1;
+const AUTOSAVE_KEY = 'effetre.planimetry.autosave';
 
 // Form state
 let selectedNord = '';
@@ -1288,6 +1358,271 @@ function loadPageState(pageIndex) {
   updateTotals();
   renderShapesList();
   renderMeasListMobile();
+}
+
+// ==========================================
+// SESSION SAVE / LOAD (.json file with everything embedded)
+// ==========================================
+
+function onPracticeCodeInput(e) {
+  // Auto-format input as "DDD.DDD": digits only, dot inserted after the third
+  // digit so the user can just type six numbers.
+  let v = (e.target.value || '').replace(/[^\d]/g, '');
+  if (v.length > 6) v = v.slice(0, 6);
+  if (v.length > 3) v = v.slice(0, 3) + '.' + v.slice(3);
+  e.target.value = v;
+  practiceCode = v;
+}
+
+function isPracticeCodeValid(c) { return /^\d{3}\.\d{3}$/.test(c); }
+
+function sessionFileBaseName() {
+  return (isPracticeCodeValid(practiceCode) ? practiceCode + ' rilievo' : 'rilievo');
+}
+
+// Convert a Uint8Array to base64 string (chunked to avoid call-stack limits).
+function bufferToBase64(uint8) {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < uint8.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, uint8.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBuffer(b64) {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// Build the in-memory snapshot. Always saves the CURRENT page state too.
+function buildSessionSnapshot() {
+  if (currentStep === 2 || allPageSources.length > 0) savePageState();
+  const files = sourceFiles.map(sf => {
+    if (sf.type === 'pdf') {
+      return { id: sf.id, type: 'pdf', name: sf.name, dataB64: bufferToBase64(sf.buffer) };
+    }
+    return { id: sf.id, type: 'image', name: sf.name, dataUrl: sf.dataUrl };
+  });
+  const pages = allPageSources.map(p => ({
+    type: p.type,
+    fileName: p.fileName,
+    pdfPageNum: p.pdfPageNum || null,
+    sourceFileId: p.sourceFileId
+  }));
+  return {
+    schema: SESSION_SCHEMA_VERSION,
+    savedAt: new Date().toISOString(),
+    practiceCode: practiceCode || '',
+    currentStep: currentStep,
+    currentPage: currentPage,
+    selectedNord: selectedNord,
+    confiniData: JSON.parse(JSON.stringify(confiniData || {})),
+    dettagliData: JSON.parse(JSON.stringify(dettagliData || {})),
+    files: files,
+    pages: pages,
+    pageStates: JSON.parse(JSON.stringify(pageStates || {}))
+  };
+}
+
+function triggerJsonDownload(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function saveSession() {
+  if (allPageSources.length === 0) {
+    alert('Nessuna planimetria caricata: niente da salvare.');
+    return;
+  }
+  if (!isPracticeCodeValid(practiceCode)) {
+    const v = prompt('Inserisci il codice pratica (formato 123.456):', practiceCode || '');
+    if (v == null) return;
+    const cleaned = v.replace(/[^\d]/g, '');
+    if (cleaned.length !== 6) { alert('Codice pratica non valido. Servono 6 cifre.'); return; }
+    practiceCode = cleaned.slice(0,3) + '.' + cleaned.slice(3);
+    const inp = document.getElementById('practice-code');
+    if (inp) inp.value = practiceCode;
+  }
+  try {
+    const snap = buildSessionSnapshot();
+    triggerJsonDownload(snap, sessionFileBaseName() + '.json');
+  } catch (e) {
+    console.error(e);
+    alert('Errore durante il salvataggio: ' + (e.message || e));
+  }
+}
+
+// Restore an in-memory snapshot. `source` is the parsed JSON object.
+async function applySessionSnapshot(snap) {
+  if (!snap || typeof snap !== 'object') throw new Error('File non valido.');
+  if (snap.schema && snap.schema > SESSION_SCHEMA_VERSION) {
+    throw new Error('Questo file è stato salvato da una versione più recente del tool.');
+  }
+
+  // Reset every piece of state we own.
+  shapes = []; currentPoints = []; mousePos = null;
+  scalePPM = null; shapeIdCounter = 0;
+  measurements = []; measIdCounter = 0;
+  annotations = []; annoIdCounter = 0;
+  drawingStroke = null; isErasing = false;
+  bgImage = null;
+  currentTool = null;
+  pageStates = {};
+  allPageSources = [];
+  sourceFiles = [];
+  sourceFileIdCounter = 0;
+  selectedNord = snap.selectedNord || '';
+  confiniData = snap.confiniData ? JSON.parse(JSON.stringify(snap.confiniData)) : {};
+  dettagliData = snap.dettagliData ? JSON.parse(JSON.stringify(snap.dettagliData)) : dettagliData;
+  practiceCode = snap.practiceCode || '';
+  const codeInput = document.getElementById('practice-code');
+  if (codeInput) codeInput.value = practiceCode;
+
+  // Reconstruct source files (decode base64 + re-create pdfjs documents).
+  const filesById = {};
+  for (const f of (snap.files || [])) {
+    if (f.type === 'pdf') {
+      const buf = base64ToBuffer(f.dataB64);
+      // pdfjsLib transfers the buffer; pass a copy to keep the original.
+      const transferBuf = buf.slice(0).buffer;
+      const pdfDoc = await pdfjsLib.getDocument({ data: transferBuf }).promise;
+      const sf = { id: f.id, type: 'pdf', name: f.name, buffer: buf, _pdfDoc: pdfDoc };
+      sourceFiles.push(sf);
+      filesById[f.id] = sf;
+    } else if (f.type === 'image') {
+      const sf = { id: f.id, type: 'image', name: f.name, dataUrl: f.dataUrl };
+      sourceFiles.push(sf);
+      filesById[f.id] = sf;
+    }
+    if (f.id > sourceFileIdCounter) sourceFileIdCounter = f.id;
+  }
+
+  // Rebuild allPageSources referring to the re-loaded sourceFiles.
+  for (const p of (snap.pages || [])) {
+    const sf = filesById[p.sourceFileId];
+    if (!sf) continue;
+    if (p.type === 'pdf') {
+      allPageSources.push({
+        type: 'pdf', pdfDoc: sf._pdfDoc, pdfPageNum: p.pdfPageNum,
+        imageUrl: null, fileName: p.fileName, sourceFileId: sf.id
+      });
+    } else {
+      allPageSources.push({
+        type: 'image', pdfDoc: null, pdfPageNum: null,
+        imageUrl: sf.dataUrl, fileName: p.fileName, sourceFileId: sf.id
+      });
+    }
+  }
+
+  totalPages = allPageSources.length;
+  currentPage = Math.max(0, Math.min(totalPages - 1, snap.currentPage || 0));
+  // Restore per-page state map
+  pageStates = snap.pageStates ? JSON.parse(JSON.stringify(snap.pageStates)) : {};
+
+  if (totalPages > 0) {
+    document.getElementById('btn-add-more').style.display = '';
+    document.getElementById('btn-proceed-step2').style.display = '';
+    if (totalPages > 1) document.getElementById('page-nav-section').style.display = '';
+    updateLoadedFilesInfo();
+  }
+  loadPageState(currentPage);
+  await renderPageByIndex(currentPage);
+  updatePageIndicator();
+
+  // Resume on the same step the user left from (default to step 2 once
+  // a planimetry exists, falling back to 1 if nothing loaded).
+  const targetStep = snap.currentStep || (totalPages > 0 ? 2 : 1);
+  if (targetStep !== currentStep) {
+    goToStep(targetStep);
+  } else if (currentStep === 2) {
+    // Force a refit since the layout might have changed.
+    requestAnimationFrame(() => fitToScreen());
+  }
+}
+
+function hasUnsavedWork() {
+  if (allPageSources.length > 0) return true;
+  // Also flag in-progress form data
+  if (selectedNord) return true;
+  return false;
+}
+
+function loadSessionFromFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const snap = JSON.parse(reader.result);
+      await applySessionSnapshot(snap);
+    } catch (e) {
+      console.error(e);
+      alert('Impossibile caricare la sessione: ' + (e.message || e));
+    }
+  };
+  reader.onerror = () => alert('Errore di lettura del file.');
+  reader.readAsText(file);
+}
+
+// Hook the file input
+(function wireSessionInput() {
+  const inp = document.getElementById('session-input');
+  if (!inp) return;
+  inp.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (hasUnsavedWork() && !confirm('Caricando una sessione perderai il lavoro non salvato. Procedere?')) {
+      e.target.value = '';
+      return;
+    }
+    loadSessionFromFile(f);
+    e.target.value = '';
+  });
+})();
+
+// ----- Auto-save to localStorage every 30s while there is work -----
+let _autosaveTimer = null;
+function autosaveTick() {
+  try {
+    if (!hasUnsavedWork()) return;
+    const snap = buildSessionSnapshot();
+    // Stringified snapshots can be MB-sized for big PDFs; localStorage usually
+    // tolerates ~5MB. If we're over that, skip rather than throw.
+    const s = JSON.stringify(snap);
+    if (s.length > 4_500_000) return;
+    localStorage.setItem(AUTOSAVE_KEY, s);
+  } catch (_) { /* quota or serialization issue - silent */ }
+}
+function startAutosave() {
+  if (_autosaveTimer) return;
+  _autosaveTimer = setInterval(autosaveTick, 30000);
+}
+function clearAutosave() {
+  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (_) {}
+}
+
+async function maybeOfferAutosaveRestore() {
+  let raw;
+  try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (_) { return; }
+  if (!raw) return;
+  let snap;
+  try { snap = JSON.parse(raw); } catch (_) { clearAutosave(); return; }
+  const when = snap.savedAt ? new Date(snap.savedAt).toLocaleString('it-IT') : '?';
+  const code = snap.practiceCode || '(senza codice)';
+  if (!confirm('È disponibile una sessione salvata automaticamente:\n\nPratica: ' + code + '\nUltimo salvataggio: ' + when + '\n\nVuoi ripristinarla?')) {
+    clearAutosave();
+    return;
+  }
+  try { await applySessionSnapshot(snap); }
+  catch (e) { console.error(e); alert('Ripristino non riuscito: ' + (e.message || e)); clearAutosave(); }
 }
 
 // ==========================================
@@ -1498,7 +1833,12 @@ async function addFileToPages(file) {
 
   if (file.type === 'application/pdf') {
     const arrayBuffer = await file.arrayBuffer();
+    // pdfjsLib.getDocument transfers/consumes the ArrayBuffer, so make a copy
+    // to keep the original bytes available for session save.
+    const bufferCopy = new Uint8Array(arrayBuffer.slice(0));
     const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const sourceFileId = ++sourceFileIdCounter;
+    sourceFiles.push({ id: sourceFileId, type: 'pdf', name: file.name, buffer: bufferCopy });
     const numPages = pdfDoc.numPages;
     for (let p = 1; p <= numPages; p++) {
       allPageSources.push({
@@ -1506,17 +1846,26 @@ async function addFileToPages(file) {
         pdfDoc: pdfDoc,
         pdfPageNum: p,
         imageUrl: null,
-        fileName: file.name + (numPages > 1 ? ' (pag. ' + p + ')' : '')
+        fileName: file.name + (numPages > 1 ? ' (pag. ' + p + ')' : ''),
+        sourceFileId: sourceFileId
       });
     }
   } else if (file.type.startsWith('image/')) {
-    const url = URL.createObjectURL(file);
+    const dataUrl = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(file);
+    });
+    const sourceFileId = ++sourceFileIdCounter;
+    sourceFiles.push({ id: sourceFileId, type: 'image', name: file.name, dataUrl: dataUrl });
     allPageSources.push({
       type: 'image',
       pdfDoc: null,
       pdfPageNum: null,
-      imageUrl: url,
-      fileName: file.name
+      imageUrl: dataUrl,
+      fileName: file.name,
+      sourceFileId: sourceFileId
     });
   }
 }
@@ -3676,6 +4025,10 @@ initConfini();
 updateTotals();
 renderMeasListMobile();
 refreshDrawingSwatches();
+startAutosave();
+// Offer to restore the last autosaved session if the user reloads the tab
+// after a crash or a closed-by-mistake browser. Skipped if no autosave exists.
+maybeOfferAutosaveRestore();
 
 // Safety net: when the canvas-area gains real dimensions for the first time
 // while Step 2 is active and a PDF is loaded, fit-to-screen. Also re-fits on
