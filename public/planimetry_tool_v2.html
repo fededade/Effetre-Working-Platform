@@ -426,7 +426,11 @@
   }
   .checkbox-toggle:hover { border-color: var(--gold); }
   .checkbox-toggle.checked { border-color: var(--gold); background: rgba(212,175,55,0.08); }
-  .checkbox-toggle input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0; }
+  .checkbox-toggle input[type=checkbox] {
+    width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; flex-shrink: 0;
+    pointer-events: none; /* clicks pass through to the wrapper so we have a single
+                             toggle path - the wrapper's onclick is the only authority. */
+  }
   .checkbox-toggle.disabled { opacity: 0.4; pointer-events: none; }
   .radio-group { display: flex; gap: 16px; }
   .radio-option {
@@ -1044,15 +1048,15 @@
 
             <div class="detail-group">
               <div class="group-label">Cucina / Angolo cottura</div>
-              <label class="checkbox-toggle" id="toggle-cucina" onclick="toggleCucina('cucina_abitabile')">
+              <div class="checkbox-toggle" id="toggle-cucina" onclick="toggleCucina('cucina_abitabile')">
                 <input type="checkbox" id="chk-cucina-abitabile"> Cucina abitabile
-              </label>
-              <label class="checkbox-toggle" id="toggle-angolo" onclick="toggleCucina('angolo_cottura')">
+              </div>
+              <div class="checkbox-toggle" id="toggle-angolo" onclick="toggleCucina('angolo_cottura')">
                 <input type="checkbox" id="chk-angolo-cottura"> Soggiorno con angolo cottura
-              </label>
-              <label class="checkbox-toggle" id="toggle-angolo-extra" onclick="toggleAngoloExtra()">
+              </div>
+              <div class="checkbox-toggle" id="toggle-angolo-extra" onclick="toggleAngoloExtra()">
                 <input type="checkbox" id="chk-angolo-cottura-extra"> Angolo cottura
-              </label>
+              </div>
             </div>
 
             <div class="detail-group">
@@ -1084,30 +1088,30 @@
           <!-- Pertinenze -->
           <div class="pertinenze-block">
             <div class="detail-section-title">Pertinenze</div>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'cantina')">
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'cantina')">
               <input type="checkbox" id="chk-cantina"> Cantina
-            </label>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'solaio')">
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'solaio')">
               <input type="checkbox" id="chk-solaio"> Solaio
-            </label>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'ripostiglio')">
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'ripostiglio')">
               <input type="checkbox" id="chk-ripostiglio"> Ripostiglio
-            </label>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'box_auto')">
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'box_auto')">
               <input type="checkbox" id="chk-box-auto"> Box auto
-            </label>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'giardino')">
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'giardino')">
               <input type="checkbox" id="chk-giardino"> Giardino
-            </label>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'sottotetto')">
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'sottotetto')">
               <input type="checkbox" id="chk-sottotetto"> Sottotetto
-            </label>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'mansarda')">
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'mansarda')">
               <input type="checkbox" id="chk-mansarda"> Mansarda
-            </label>
-            <label class="checkbox-toggle" onclick="togglePertinenza(this, 'corte_esclusiva')">
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'corte_esclusiva')">
               <input type="checkbox" id="chk-corte-esclusiva"> Corte esclusiva
-            </label>
+            </div>
           </div>
 
           <div class="nav-buttons">
@@ -1573,6 +1577,11 @@ async function applySessionSnapshot(snap) {
   await renderPageByIndex(currentPage);
   updatePageIndicator();
 
+  // Push the restored data back into the visible form (compass, confini,
+  // tipologia, radio groups, checkboxes, distribuzione per piano, ...).
+  // Without this, the underlying state is correct but the inputs look empty.
+  applyFormDataToUI();
+
   // Resume on the same step the user left from (default to step 2 once
   // a planimetry exists, falling back to 1 if nothing loaded).
   const targetStep = snap.currentStep || (totalPages > 0 ? 2 : 1);
@@ -1866,6 +1875,11 @@ function goToStep(n) {
   if (currentStep === 2) {
     savePageState();
   }
+  // Capture the Step 5 form values into dettagliData on every leave so a
+  // round-trip (5 -> 4 -> 5) doesn't lose what the user typed.
+  if (currentStep === 5 && n !== 5 && typeof collectDettagli === 'function') {
+    try { collectDettagli(); } catch (_) {}
+  }
 
   // Capture preview snapshot from canvas before leaving step 2
   if ((n === 3 || n === 4) && canvas.width > 0 && canvas.height > 0) {
@@ -1893,7 +1907,7 @@ function goToStep(n) {
     setTimeout(fitToScreen, 100);
     setTimeout(fitToScreen, 400);
   }
-  if (n === 5) initStep5MultiLevel();
+  if (n === 5) applyFormDataToUI();
   if (n === 6) buildSummary();
 }
 
@@ -3024,6 +3038,74 @@ function getAbitazionePiani() {
   return Array.from(pianiSet);
 }
 
+// Push the current dettagliData / selectedNord / confiniData into the matching
+// DOM controls (selects, radio-options, checkboxes, inputs). Called after a
+// session is loaded and when entering Step 5 to make sure the visible form
+// reflects the underlying state.
+function applyFormDataToUI() {
+  // Compass + confini re-render based on globals
+  if (document.getElementById('compass-grid')) initCompass();
+  if (document.getElementById('confini-grid')) initConfini();
+
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el != null) el.value = (v == null ? '' : v); };
+  setVal('tipologia', dettagliData.tipologia || '');
+  setVal('ristrutturazione-desc', dettagliData.ristrutturazione_desc || '');
+  setVal('piani-fuori-terra', dettagliData.piani_fuori_terra != null ? dettagliData.piani_fuori_terra : 1);
+  setVal('piani-entroterra', dettagliData.piani_entroterra != null ? dettagliData.piani_entroterra : 0);
+  setVal('num-servizi-igienici', dettagliData.num_servizi_igienici || '');
+
+  // ristrutturazione-desc-group visibility
+  const rgroup = document.getElementById('ristrutturazione-desc-group');
+  if (rgroup) rgroup.style.display = dettagliData.ristrutturazione === 'Si' ? '' : 'none';
+
+  // Radio-option groups (.selected class on a sibling div whose data-field
+  // and inner text/data drive the value)
+  document.querySelectorAll('.radio-option').forEach(opt => {
+    const field = opt.getAttribute('data-field');
+    if (!field) return;
+    // The selectRadio handler is called with a literal value derived from the
+    // onclick attribute. We have to extract that literal so the DOM matches the
+    // saved state. Simplest: parse it out of the onclick string.
+    const oc = opt.getAttribute('onclick') || '';
+    const m = oc.match(/selectRadio\(this,\s*'[^']*'\s*,\s*'([^']*)'\s*\)/);
+    const optValue = m ? m[1] : null;
+    if (optValue == null) return;
+    if (dettagliData[field] === optValue) opt.classList.add('selected');
+    else opt.classList.remove('selected');
+  });
+
+  // Checkbox-style toggles (cucina, angolo cottura, angolo extra, pertinenze)
+  _syncCheckboxToggle('toggle-cucina', 'chk-cucina-abitabile', dettagliData.cucina_abitabile);
+  _syncCheckboxToggle('toggle-angolo', 'chk-angolo-cottura', dettagliData.angolo_cottura);
+  _syncCheckboxToggle('toggle-angolo-extra', 'chk-angolo-cottura-extra', dettagliData.angolo_cottura_extra);
+  const pert = (dettagliData.pertinenze || {});
+  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','giardino','sottotetto','mansarda','corte_esclusiva'];
+  pertKeys.forEach(k => {
+    const inputId = 'chk-' + k.replace(/_/g, '-');
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const wrapper = input.parentElement;
+    if (wrapper) wrapper.classList.toggle('checked', !!pert[k]);
+    input.checked = !!pert[k];
+  });
+
+  // Multi-level distribuzione (camere / servizi). Re-generate the UI from the
+  // current piani configuration, then push the saved per-piano values back in.
+  initStep5MultiLevel();
+  const dc = dettagliData.distribuzione_camere || [];
+  document.querySelectorAll('.dist-camere-select').forEach(sel => {
+    const piano = sel.getAttribute('data-piano');
+    const found = dc.find(d => d.piano === piano);
+    if (found) sel.value = String(found.quantita);
+  });
+  const ds = dettagliData.distribuzione_servizi || [];
+  document.querySelectorAll('.dist-servizi-select').forEach(sel => {
+    const piano = sel.getAttribute('data-piano');
+    const found = ds.find(d => d.piano === piano);
+    if (found) sel.value = String(found.quantita);
+  });
+}
+
 function initStep5MultiLevel() {
   const piani = getAbitazionePiani();
   const divCamere = document.getElementById('distribuzione-camere');
@@ -3221,51 +3303,42 @@ function selectRadio(el, field, value) {
   }
 }
 
-function toggleCucina(which) {
-  const chkCucina = document.getElementById('chk-cucina-abitabile');
-  const chkAngolo = document.getElementById('chk-angolo-cottura');
-  const toggleC = document.getElementById('toggle-cucina');
-  const toggleA = document.getElementById('toggle-angolo');
+// Source-of-truth helper: keep `dettagliData[field]` in sync with the
+// wrapper's `.checked` class and the inner input's `.checked` property.
+function _syncCheckboxToggle(wrapperId, inputId, isOn) {
+  const wrapper = document.getElementById(wrapperId);
+  const input = document.getElementById(inputId);
+  if (wrapper) wrapper.classList.toggle('checked', !!isOn);
+  if (input) input.checked = !!isOn;
+}
 
+function toggleCucina(which) {
+  // Mutually-exclusive between cucina abitabile and soggiorno con angolo cottura.
   if (which === 'cucina_abitabile') {
-    const newVal = !chkCucina.checked;
-    chkCucina.checked = newVal;
+    const newVal = !dettagliData.cucina_abitabile;
     dettagliData.cucina_abitabile = newVal;
-    toggleC.classList.toggle('checked', newVal);
-    if (newVal) {
-      chkAngolo.checked = false;
-      dettagliData.angolo_cottura = false;
-      toggleA.classList.remove('checked');
-    }
+    if (newVal) dettagliData.angolo_cottura = false;
   } else {
-    const newVal = !chkAngolo.checked;
-    chkAngolo.checked = newVal;
+    const newVal = !dettagliData.angolo_cottura;
     dettagliData.angolo_cottura = newVal;
-    toggleA.classList.toggle('checked', newVal);
-    if (newVal) {
-      chkCucina.checked = false;
-      dettagliData.cucina_abitabile = false;
-      toggleC.classList.remove('checked');
-    }
+    if (newVal) dettagliData.cucina_abitabile = false;
   }
+  _syncCheckboxToggle('toggle-cucina', 'chk-cucina-abitabile', dettagliData.cucina_abitabile);
+  _syncCheckboxToggle('toggle-angolo', 'chk-angolo-cottura', dettagliData.angolo_cottura);
 }
 
 function toggleAngoloExtra() {
-  const chk = document.getElementById('chk-angolo-cottura-extra');
-  const toggle = document.getElementById('toggle-angolo-extra');
-  const newVal = !chk.checked;
-  chk.checked = newVal;
-  dettagliData.angolo_cottura_extra = newVal;
-  toggle.classList.toggle('checked', newVal);
+  dettagliData.angolo_cottura_extra = !dettagliData.angolo_cottura_extra;
+  _syncCheckboxToggle('toggle-angolo-extra', 'chk-angolo-cottura-extra', dettagliData.angolo_cottura_extra);
 }
 
 function togglePertinenza(el, key) {
-  const chk = el.querySelector('input[type=checkbox]');
-  const newVal = !chk.checked;
-  chk.checked = newVal;
-  el.classList.toggle('checked', newVal);
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
+  const newVal = !dettagliData.pertinenze[key];
   dettagliData.pertinenze[key] = newVal;
+  el.classList.toggle('checked', newVal);
+  const chk = el.querySelector('input[type=checkbox]');
+  if (chk) chk.checked = newVal;
 }
 
 // ==========================================
