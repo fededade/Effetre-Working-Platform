@@ -685,6 +685,34 @@
   .btn-session.primary { background: var(--gold); color: #000; border-color: var(--gold); }
   .btn-session.primary:hover { background: #e8c84a; }
 
+  /* Recent practices list (Step 1) */
+  .recent-sessions {
+    margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border);
+    text-align: left;
+  }
+  .recent-sessions.hidden { display: none; }
+  .recent-sessions h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-dim); margin-bottom: 10px; font-weight: 700;
+  }
+  .recent-list { display: flex; flex-direction: column; gap: 8px; }
+  .recent-item {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; cursor: pointer; transition: all 0.2s;
+  }
+  .recent-item:hover { border-color: var(--gold); background: rgba(212,175,55,0.05); }
+  .recent-item .rs-code {
+    font-family: monospace; font-weight: 700; color: var(--gold); font-size: 15px;
+    min-width: 80px;
+  }
+  .recent-item .rs-meta { flex: 1; font-size: 12px; color: var(--text-dim); }
+  .recent-item .rs-del {
+    background: transparent; border: none; color: var(--red); cursor: pointer;
+    font-size: 18px; padding: 4px 8px; border-radius: 4px;
+  }
+  .recent-item .rs-del:hover { background: rgba(239,68,68,0.15); }
+
   /* Header save button (always visible across steps) */
   .header-save-btn {
     position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
@@ -735,7 +763,11 @@
           <input type="file" id="file-input-add" accept="application/pdf,image/png,image/jpeg" multiple>
           <input type="file" id="session-input" accept="application/json,.json" style="display:none;">
           <div class="session-row">
-            <button class="btn-session" onclick="document.getElementById('session-input').click()">&#128193; Carica sessione</button>
+            <button class="btn-session" onclick="document.getElementById('session-input').click()">&#128193; Carica sessione (.json)</button>
+          </div>
+          <div id="recent-sessions" class="recent-sessions hidden">
+            <h3>Pratiche recenti</h3>
+            <div class="recent-list" id="recent-list"></div>
           </div>
           <div id="loaded-files-info" style="margin-top:20px; font-size:13px; color:var(--text-dim);"></div>
           <div id="upload-preview" style="display:none; margin-top:20px;"></div>
@@ -1292,7 +1324,6 @@ let practiceCode = '';
 
 // Schema version of the .json saved by saveSession() - bump if format changes.
 const SESSION_SCHEMA_VERSION = 1;
-const AUTOSAVE_KEY = 'effetre.planimetry.autosave';
 
 // Form state
 let selectedNord = '';
@@ -1455,6 +1486,10 @@ function saveSession() {
   try {
     const snap = buildSessionSnapshot();
     triggerJsonDownload(snap, sessionFileBaseName() + '.json');
+    // Mirror to localStorage so the practice immediately appears in the
+    // "Pratiche recenti" list - even if the user was working in the draft slot.
+    writeSessionToStorage(snap);
+    renderRecentSessions();
   } catch (e) {
     console.error(e);
     alert('Errore durante il salvataggio: ' + (e.message || e));
@@ -1588,41 +1623,148 @@ function loadSessionFromFile(file) {
   });
 })();
 
-// ----- Auto-save to localStorage every 30s while there is work -----
+// ----- Auto-save to localStorage, indexed by codice pratica -----
+// Storage layout (localStorage):
+//   effetre.planimetry.index.v1 = JSON array of {code, savedAt}
+//   effetre.planimetry.session.<code> = stringified snapshot
+// Sessions without a codice pratica yet share the special slot DRAFT_CODE so
+// in-progress work isn't lost while the user picks a code.
+const SESSION_INDEX_KEY = 'effetre.planimetry.index.v1';
+const SESSION_PREFIX    = 'effetre.planimetry.session.';
+const DRAFT_CODE        = '_draft_';
+const MAX_INDEX_ENTRIES = 8;
+
+function loadSessionIndex() {
+  try {
+    const raw = localStorage.getItem(SESSION_INDEX_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) { return []; }
+}
+function saveSessionIndex(arr) {
+  try { localStorage.setItem(SESSION_INDEX_KEY, JSON.stringify(arr)); } catch (_) {}
+}
+
+function upsertSessionIndex(code, savedAt) {
+  let idx = loadSessionIndex().filter(e => e.code !== code);
+  idx.unshift({ code: code, savedAt: savedAt });
+  // Evict oldest entries beyond the cap (keep the most recently saved).
+  idx.sort((a, b) => (b.savedAt || '').localeCompare(a.savedAt || ''));
+  while (idx.length > MAX_INDEX_ENTRIES) {
+    const ev = idx.pop();
+    try { localStorage.removeItem(SESSION_PREFIX + ev.code); } catch (_) {}
+  }
+  saveSessionIndex(idx);
+}
+
+function deleteSessionFromStorage(code) {
+  try { localStorage.removeItem(SESSION_PREFIX + code); } catch (_) {}
+  saveSessionIndex(loadSessionIndex().filter(e => e.code !== code));
+  renderRecentSessions();
+}
+
+function readSessionFromStorage(code) {
+  try {
+    const raw = localStorage.getItem(SESSION_PREFIX + code);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) { return null; }
+}
+
+function writeSessionToStorage(snap) {
+  const code = isPracticeCodeValid(snap.practiceCode) ? snap.practiceCode : DRAFT_CODE;
+  const s = JSON.stringify(snap);
+  // localStorage usually tolerates ~5MB total. Skip oversized snapshots
+  // rather than throwing - the user still has the explicit .json download.
+  if (s.length > 4_500_000) return false;
+  try {
+    localStorage.setItem(SESSION_PREFIX + code, s);
+    upsertSessionIndex(code, snap.savedAt || new Date().toISOString());
+    return true;
+  } catch (_) {
+    // Quota exceeded: drop the oldest stored session and retry once.
+    const idx = loadSessionIndex();
+    if (idx.length > 1) {
+      const oldest = idx[idx.length - 1];
+      if (oldest.code !== code) deleteSessionFromStorage(oldest.code);
+      try { localStorage.setItem(SESSION_PREFIX + code, s); upsertSessionIndex(code, snap.savedAt); return true; } catch (_) {}
+    }
+    return false;
+  }
+}
+
 let _autosaveTimer = null;
 function autosaveTick() {
   try {
     if (!hasUnsavedWork()) return;
     const snap = buildSessionSnapshot();
-    // Stringified snapshots can be MB-sized for big PDFs; localStorage usually
-    // tolerates ~5MB. If we're over that, skip rather than throw.
-    const s = JSON.stringify(snap);
-    if (s.length > 4_500_000) return;
-    localStorage.setItem(AUTOSAVE_KEY, s);
-  } catch (_) { /* quota or serialization issue - silent */ }
+    writeSessionToStorage(snap);
+  } catch (_) { /* serialization issue - silent */ }
 }
 function startAutosave() {
   if (_autosaveTimer) return;
   _autosaveTimer = setInterval(autosaveTick, 30000);
 }
-function clearAutosave() {
-  try { localStorage.removeItem(AUTOSAVE_KEY); } catch (_) {}
+
+// One-time migration from the previous single-key autosave format.
+function migrateLegacyAutosave() {
+  try {
+    const raw = localStorage.getItem('effetre.planimetry.autosave');
+    if (!raw) return;
+    const snap = JSON.parse(raw);
+    writeSessionToStorage(snap);
+    localStorage.removeItem('effetre.planimetry.autosave');
+  } catch (_) {}
 }
 
-async function maybeOfferAutosaveRestore() {
-  let raw;
-  try { raw = localStorage.getItem(AUTOSAVE_KEY); } catch (_) { return; }
-  if (!raw) return;
-  let snap;
-  try { snap = JSON.parse(raw); } catch (_) { clearAutosave(); return; }
-  const when = snap.savedAt ? new Date(snap.savedAt).toLocaleString('it-IT') : '?';
-  const code = snap.practiceCode || '(senza codice)';
-  if (!confirm('È disponibile una sessione salvata automaticamente:\n\nPratica: ' + code + '\nUltimo salvataggio: ' + when + '\n\nVuoi ripristinarla?')) {
-    clearAutosave();
+function renderRecentSessions() {
+  const wrap = document.getElementById('recent-sessions');
+  const list = document.getElementById('recent-list');
+  if (!wrap || !list) return;
+  const idx = loadSessionIndex();
+  if (idx.length === 0) {
+    wrap.classList.add('hidden');
+    list.innerHTML = '';
     return;
   }
-  try { await applySessionSnapshot(snap); }
-  catch (e) { console.error(e); alert('Ripristino non riuscito: ' + (e.message || e)); clearAutosave(); }
+  wrap.classList.remove('hidden');
+  list.innerHTML = '';
+  idx.forEach(entry => {
+    const row = document.createElement('div');
+    row.className = 'recent-item';
+    const when = entry.savedAt ? new Date(entry.savedAt).toLocaleString('it-IT') : '?';
+    const codeLabel = entry.code === DRAFT_CODE ? '(senza codice)' : entry.code;
+    const codeEl = document.createElement('span');
+    codeEl.className = 'rs-code';
+    codeEl.textContent = codeLabel;
+    const metaEl = document.createElement('span');
+    metaEl.className = 'rs-meta';
+    metaEl.textContent = 'salvata: ' + when;
+    const delEl = document.createElement('button');
+    delEl.className = 'rs-del';
+    delEl.title = 'Elimina questa sessione';
+    delEl.innerHTML = '&times;';
+    delEl.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (confirm('Eliminare la sessione ' + codeLabel + '?')) deleteSessionFromStorage(entry.code);
+    });
+    row.appendChild(codeEl);
+    row.appendChild(metaEl);
+    row.appendChild(delEl);
+    row.addEventListener('click', async () => {
+      if (hasUnsavedWork() && !confirm('Caricando questa sessione perderai il lavoro non salvato. Procedere?')) return;
+      const snap = readSessionFromStorage(entry.code);
+      if (!snap) {
+        alert('Sessione non più disponibile.');
+        deleteSessionFromStorage(entry.code);
+        return;
+      }
+      try { await applySessionSnapshot(snap); }
+      catch (e) { console.error(e); alert('Caricamento non riuscito: ' + (e.message || e)); }
+    });
+    list.appendChild(row);
+  });
 }
 
 // ==========================================
@@ -1690,6 +1832,7 @@ function goBackHome() {
 function renderStepper() {
   const bar = document.getElementById('stepper-bar');
   const homeBtn = bar.querySelector('.home-back-btn');
+  const saveBtn = bar.querySelector('.header-save-btn');
   bar.innerHTML = '';
   if (homeBtn) bar.appendChild(homeBtn);
   STEPS.forEach((step, i) => {
@@ -1704,6 +1847,7 @@ function renderStepper() {
       bar.appendChild(conn);
     }
   });
+  if (saveBtn) bar.appendChild(saveBtn);
 }
 
 function goToStep(n) {
@@ -4025,10 +4169,9 @@ initConfini();
 updateTotals();
 renderMeasListMobile();
 refreshDrawingSwatches();
+migrateLegacyAutosave();
+renderRecentSessions();
 startAutosave();
-// Offer to restore the last autosaved session if the user reloads the tab
-// after a crash or a closed-by-mistake browser. Skipped if no autosave exists.
-maybeOfferAutosaveRestore();
 
 // Safety net: when the canvas-area gains real dimensions for the first time
 // while Step 2 is active and a PDF is loaded, fit-to-screen. Also re-fits on
