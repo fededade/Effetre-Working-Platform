@@ -2545,20 +2545,37 @@ document.addEventListener('mousemove', function(e) {
   canvasArea.scrollTop  = panStart.st - (e.clientY - panStart.y);
 });
 
-document.addEventListener('mouseup', function() {
+// Timestamp of the most recent middle-mouse-button release, used to ignore
+// any wheel events the browser synthesizes immediately after auto-scroll mode
+// closes (some mice/browsers fire a stray wheel event right at release).
+let _lastMiddleUp = 0;
+
+document.addEventListener('mouseup', function(e) {
+  if (e && e.button === 1) _lastMiddleUp = Date.now();
   if (!isPanning) return;
   isPanning = false;
   canvasArea.style.cursor = currentTool === 'pan' ? 'grab' : '';
 });
 
-// Prevent default middle-click autoscroll behavior
+// Suppress every browser default associated with the middle button so the
+// scroll-wheel cursor / auto-scroll mode doesn't kick in mid-pan.
 canvasArea.addEventListener('auxclick', function(e) {
   if (e.button === 1) e.preventDefault();
 });
+canvasArea.addEventListener('mouseup', function(e) {
+  if (e.button === 1) e.preventDefault();
+});
 
-// Mouse wheel zoom (anchored at the cursor position)
+// Mouse wheel zoom (anchored at the cursor position). While the user is
+// holding the middle button to pan, ignore wheel events entirely - some
+// browser/mouse combinations enter an "auto-scroll" mode on middle-down and
+// synthesize wheel events as the cursor moves, which would otherwise zoom
+// while panning. Same protection skips wheel events fired in quick
+// succession after middle-mouse-up.
 canvasArea.addEventListener('wheel', function(e) {
   e.preventDefault();
+  if (isPanning) return;
+  if (Date.now() - _lastMiddleUp < 250) return;
   // Use a multiplicative step so feel is consistent at every zoom level
   const factor = e.deltaY > 0 ? (1 / 1.12) : 1.12;
   setZoom(zoomLevel * factor, e.clientX, e.clientY);
