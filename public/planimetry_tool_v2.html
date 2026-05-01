@@ -75,9 +75,14 @@
 
   /* ===== STEP 1: UPLOAD ===== */
   .upload-panel {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex: 1; display: flex; flex-direction: column; align-items: center;
     gap: 32px; padding: 40px 20px; overflow-y: auto;
   }
+  /* Auto-margins center the content vertically when there is room and
+     collapse to 0 when content overflows - so the logo never gets cut at
+     the top on short viewports the way `justify-content: center` did. */
+  .upload-panel > .branding-header { margin-top: auto; }
+  .upload-panel > .upload-box       { margin-bottom: auto; }
   .branding-header {
     display: flex; flex-direction: column; align-items: center; gap: 8px;
   }
@@ -1510,6 +1515,18 @@ async function applySessionSnapshot(snap) {
   if (!snap || typeof snap !== 'object') throw new Error('File non valido.');
   if (snap.schema && snap.schema > SESSION_SCHEMA_VERSION) {
     throw new Error('Questo file è stato salvato da una versione più recente del tool.');
+  }
+  // Distinguish a real session save (has files+pages) from the data-only
+  // export (planimetria_data.json from "Esporta JSON") which doesn't embed
+  // the planimetry. Loading the wrong file used to fail silently because
+  // both got past parse and ended up at Step 1 with nothing visible to do.
+  const looksLikeSession = (snap.schema || (Array.isArray(snap.files) && Array.isArray(snap.pages)));
+  if (!looksLikeSession) {
+    throw new Error('Questo file non sembra una sessione salvata. ' +
+      'Usa il file generato dal pulsante "Salva sessione" (non da "Esporta JSON").');
+  }
+  if (!Array.isArray(snap.files) || !Array.isArray(snap.pages) || snap.files.length === 0 || snap.pages.length === 0) {
+    throw new Error('La sessione non contiene planimetrie. Probabilmente è un file vuoto o danneggiato.');
   }
 
   // Reset every piece of state we own.
