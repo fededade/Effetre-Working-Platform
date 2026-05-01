@@ -722,17 +722,22 @@
   }
   .recent-item .rs-del:hover { background: rgba(239,68,68,0.15); }
 
-  /* Header save button (always visible across steps) */
+  /* Persistent save button. Lives just below the stepper bar so it does
+     not collide with the step indicators / labels above. Floats over the
+     content as a fixed element with a high z-index, hidden on Step 6 via
+     a body class because the Esporta JSON button there does the same job. */
   .header-save-btn {
-    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    position: fixed; top: 64px; right: 12px; z-index: 70;
     background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
     border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 700;
     cursor: pointer; display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
   }
   .header-save-btn:hover { border-color: var(--gold); color: var(--gold); }
   .header-save-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  body.on-step-6 .header-save-btn { display: none; }
   @media (max-width: 768px) {
-    .header-save-btn { right: 8px; padding: 6px 10px; font-size: 12px; }
+    .header-save-btn { top: 50px; right: 8px; padding: 6px 10px; font-size: 12px; }
     .header-save-btn .lbl { display: none; }
   }
 </style>
@@ -743,10 +748,13 @@
   <!-- STEPPER BAR -->
   <div class="stepper-bar" id="stepper-bar">
     <button class="home-back-btn" onclick="goBackHome()" title="Torna alla home">&#8592; Home</button>
-    <button class="header-save-btn" id="btn-save-session" onclick="saveSession()" title="Salva sessione (.json)">
-      &#128190; <span class="lbl">Salva sessione</span>
-    </button>
   </div>
+  <!-- Persistent save button - sits below the stepper bar so it never
+       overlaps the step labels. Hidden on Step 6, where the yellow
+       "Esporta JSON" button covers the same action. -->
+  <button class="header-save-btn" id="btn-save-session" onclick="saveSession()" title="Salva sessione (.json)">
+    &#128190; <span class="lbl">Salva sessione</span>
+  </button>
 
   <!-- MAIN CONTENT -->
   <div class="main-content">
@@ -1144,9 +1152,8 @@
           <div class="json-preview" id="json-preview"></div>
 
           <div class="export-row">
-            <button class="btn-export gold" onclick="exportJSON()">&#128190; Esporta JSON</button>
+            <button class="btn-export gold" onclick="saveSession()">&#128190; Esporta JSON</button>
             <button class="btn-export outline desktop-only" onclick="exportPlanimetryPDF()">&#128196; Scarica planimetria con superfici</button>
-            <button class="btn-export outline" onclick="saveSession()">&#128193; Salva sessione (.json)</button>
           </div>
 
           <div class="nav-buttons">
@@ -1483,7 +1490,40 @@ function triggerJsonDownload(obj, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-function saveSession() {
+// Save the snapshot via the browser's native "save as" dialog when the
+// File System Access API is available (Chrome / Edge desktop), falling back
+// to a regular auto-download otherwise (Safari / Firefox / mobile browsers).
+// Returns true if the file was written, false if the user canceled.
+async function saveJsonViaPickerOrDownload(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
+  if (typeof window.showSaveFilePicker === 'function') {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'Sessione planimetria', accept: { 'application/json': ['.json'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return false; // user canceled the picker
+      // Fall through to download on other failures (e.g. browser bug, no permission)
+      console.warn('showSaveFilePicker failed, falling back to download', e);
+    }
+  }
+  // Auto-download fallback
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return true;
+}
+
+async function saveSession() {
   if (allPageSources.length === 0) {
     alert('Nessuna planimetria caricata: niente da salvare.');
     return;
@@ -1499,7 +1539,8 @@ function saveSession() {
   }
   try {
     const snap = buildSessionSnapshot();
-    triggerJsonDownload(snap, sessionFileBaseName() + '.json');
+    const written = await saveJsonViaPickerOrDownload(snap, sessionFileBaseName() + '.json');
+    if (!written) return; // user canceled the save dialog
     // Mirror to localStorage so the practice immediately appears in the
     // "Pratiche recenti" list - even if the user was working in the draft slot.
     writeSessionToStorage(snap);
@@ -1864,7 +1905,6 @@ function goBackHome() {
 function renderStepper() {
   const bar = document.getElementById('stepper-bar');
   const homeBtn = bar.querySelector('.home-back-btn');
-  const saveBtn = bar.querySelector('.header-save-btn');
   bar.innerHTML = '';
   if (homeBtn) bar.appendChild(homeBtn);
   STEPS.forEach((step, i) => {
@@ -1879,7 +1919,6 @@ function renderStepper() {
       bar.appendChild(conn);
     }
   });
-  if (saveBtn) bar.appendChild(saveBtn);
 }
 
 function goToStep(n) {
@@ -1914,6 +1953,9 @@ function goToStep(n) {
   currentStep = n;
   // Toggle step-2-mobile body class so the bottom-sheet/full-screen layout activates only on canvas step
   document.body.classList.toggle('step-2-mobile', isMobile && n === 2);
+  // The header save button is hidden on Step 6 because the page already has
+  // the prominent "Esporta JSON" button which performs the same action.
+  document.body.classList.toggle('on-step-6', n === 6);
   if (n !== 2) {
     const sb = document.getElementById('canvas-sidebar');
     if (sb) sb.classList.remove('expanded');
