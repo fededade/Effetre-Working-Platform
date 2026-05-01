@@ -3872,7 +3872,11 @@ function exportJSON() {
 // MOBILE: TOUCH + SNAP + MEASUREMENT TOOL
 // ==========================================
 const SNAP_RADIUS_PX = 28;     // search radius in canvas pixels
-const SNAP_LUMA_MAX  = 110;    // pixel is "dark" below this luminance (0-255)
+// Anything not clearly "paper" qualifies as a wall candidate. The previous
+// 110 cutoff missed thin or anti-aliased grey wall edges close to the tap,
+// which then got skipped in favor of a darker but farther line - producing
+// the "snap jumps past 2 lines" symptom on plans with thin grey walls.
+const SNAP_LUMA_MAX  = 200;    // pixel is "dark" below this luminance (0-255)
 const TAP_MAX_MOVE   = 10;     // px movement threshold to count as tap
 const TAP_MAX_TIME   = 400;    // ms
 
@@ -3896,7 +3900,14 @@ function ensureSnapCanvas() {
   _snapCanvas.width = canvas.width;
   _snapCanvas.height = canvas.height;
   _snapCtx = _snapCanvas.getContext('2d');
-  try { _snapCtx.drawImage(bgImage, 0, 0, canvas.width, canvas.height); }
+  try {
+    // Fill with white first: any transparent pixel in bgImage would otherwise
+    // be read as RGBA(0,0,0,0) -> luma 0 -> falsely "very dark", attracting
+    // the snap to non-wall regions.
+    _snapCtx.fillStyle = '#fff';
+    _snapCtx.fillRect(0, 0, canvas.width, canvas.height);
+    _snapCtx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+  }
   catch (e) { _snapCanvas = null; _snapCtx = null; return null; }
   _snapBgRef = bgImage; _snapW = canvas.width; _snapH = canvas.height;
   return _snapCtx;
