@@ -762,11 +762,11 @@
             <input type="text" id="practice-code" placeholder="123.456" maxlength="7"
                    inputmode="numeric" autocomplete="off" oninput="onPracticeCodeInput(event)">
           </div>
-          <button class="upload-btn" onclick="document.getElementById('file-input').click()">Seleziona File</button>
+          <button class="upload-btn" onclick="document.getElementById('file-input').click()"><span class="desktop-only">Seleziona File</span><span class="mobile-only" style="display:none;">Carica planimetria</span></button>
           <input type="file" id="file-input" accept="application/pdf,image/png,image/jpeg" multiple>
           <input type="file" id="file-input-add" accept="application/pdf,image/png,image/jpeg" multiple>
           <input type="file" id="session-input" accept="application/json,.json" style="display:none;">
-          <div class="session-row">
+          <div class="session-row desktop-only">
             <button class="btn-session" onclick="document.getElementById('session-input').click()">&#128193; Carica sessione (.json)</button>
           </div>
           <div id="recent-sessions" class="recent-sessions hidden">
@@ -1140,7 +1140,7 @@
 
           <div class="export-row">
             <button class="btn-export gold" onclick="exportJSON()">&#128190; Esporta JSON</button>
-            <button class="btn-export outline" onclick="exportPlanimetryPDF()">&#128196; Scarica planimetria con superfici</button>
+            <button class="btn-export outline desktop-only" onclick="exportPlanimetryPDF()">&#128196; Scarica planimetria con superfici</button>
             <button class="btn-export outline" onclick="saveSession()">&#128193; Salva sessione (.json)</button>
           </div>
 
