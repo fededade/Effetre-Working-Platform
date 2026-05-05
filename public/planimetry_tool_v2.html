@@ -1126,6 +1126,9 @@
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'mansarda')">
               <input type="checkbox" id="chk-mansarda"> Mansarda
             </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'portico')">
+              <input type="checkbox" id="chk-portico"> Portico
+            </div>
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'corte_esclusiva')">
               <input type="checkbox" id="chk-corte-esclusiva"> Corte esclusiva
             </div>
@@ -3088,6 +3091,9 @@ function confirmPianoModal() {
 
   pendingShape.piano = piano;
   shapes.push(pendingShape);
+  // Auto-mark the matching pertinenza so the JSON / Step 5 UI stay in sync
+  // with the shapes the user has actually drawn.
+  if (typeof syncPertinenzeFromShapes === 'function') syncPertinenzeFromShapes();
   pendingShape = null;
 
   document.getElementById('piano-modal').classList.add('hidden');
@@ -3160,8 +3166,10 @@ function applyFormDataToUI() {
   _syncCheckboxToggle('toggle-cucina', 'chk-cucina-abitabile', dettagliData.cucina_abitabile);
   _syncCheckboxToggle('toggle-angolo', 'chk-angolo-cottura', dettagliData.angolo_cottura);
   _syncCheckboxToggle('toggle-angolo-extra', 'chk-angolo-cottura-extra', dettagliData.angolo_cottura_extra);
+  // Make sure shape-backed flags are derived before we paint the form.
+  if (typeof syncPertinenzeFromShapes === 'function') syncPertinenzeFromShapes();
   const pert = (dettagliData.pertinenze || {});
-  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','giardino','sottotetto','mansarda','corte_esclusiva'];
+  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','giardino','sottotetto','mansarda','portico','corte_esclusiva'];
   pertKeys.forEach(k => {
     const inputId = 'chk-' + k.replace(/_/g, '-');
     const input = document.getElementById(inputId);
@@ -3469,7 +3477,42 @@ function collectDettagli() {
   dettagliData.pertinenze.giardino = document.getElementById('chk-giardino').checked;
   dettagliData.pertinenze.sottotetto = document.getElementById('chk-sottotetto').checked;
   dettagliData.pertinenze.mansarda = document.getElementById('chk-mansarda').checked;
+  dettagliData.pertinenze.portico = document.getElementById('chk-portico').checked;
   dettagliData.pertinenze.corte_esclusiva = document.getElementById('chk-corte-esclusiva').checked;
+
+  // Force-derive flags from drawn shapes: any pertinenza key that matches at
+  // least one shape type across all pages must be true (the user already
+  // declared it by drawing it).
+  syncPertinenzeFromShapes();
+}
+
+// Pertinenze keys that have a corresponding shape category. Drawing a shape
+// of one of these types must imply pertinenze[key] = true.
+const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','giardino','sottotetto','mansarda','ripostiglio','portico'];
+
+function syncPertinenzeFromShapes() {
+  if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
+  // Include the in-memory `shapes` (current page hasn't been saved yet) plus
+  // every saved page state.
+  const present = new Set();
+  shapes.forEach(s => { if (s && s.type) present.add(s.type); });
+  Object.keys(pageStates || {}).forEach(k => {
+    const ps = pageStates[k];
+    if (ps && Array.isArray(ps.shapes)) {
+      ps.shapes.forEach(s => { if (s && s.type) present.add(s.type); });
+    }
+  });
+  SHAPE_BACKED_PERTINENZE.forEach(key => {
+    if (present.has(key)) {
+      dettagliData.pertinenze[key] = true;
+      const chk = document.getElementById('chk-' + key.replace(/_/g, '-'));
+      if (chk) {
+        chk.checked = true;
+        const wrapper = chk.parentElement;
+        if (wrapper) wrapper.classList.add('checked');
+      }
+    }
+  });
 }
 
 function buildSummary() {
@@ -3526,7 +3569,7 @@ function buildSummary() {
 
   // Pertinenze card
   const pert = dettagliData.pertinenze || {};
-  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', corte_esclusiva: 'Corte esclusiva' };
+  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico', corte_esclusiva: 'Corte esclusiva' };
   html += '<div class="summary-card"><h4>Pertinenze</h4>';
   Object.keys(pertLabels).forEach(k => {
     html += '<div class="summary-row"><span class="sr-label">' + pertLabels[k] + '</span><span class="sr-value" style="color:' + (pert[k] ? 'var(--green)' : 'var(--text-dim)') + ';">' + (pert[k] ? 'S\u00EC' : 'No') + '</span></div>';
@@ -3673,6 +3716,7 @@ function buildJSON() {
       giardino: !!(dettagliData.pertinenze && dettagliData.pertinenze.giardino),
       sottotetto: !!(dettagliData.pertinenze && dettagliData.pertinenze.sottotetto),
       mansarda: !!(dettagliData.pertinenze && dettagliData.pertinenze.mansarda),
+      portico: !!(dettagliData.pertinenze && dettagliData.pertinenze.portico),
       corte_esclusiva: !!(dettagliData.pertinenze && dettagliData.pertinenze.corte_esclusiva)
     }
   };
