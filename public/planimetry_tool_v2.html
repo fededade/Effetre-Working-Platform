@@ -882,6 +882,10 @@
               <span class="dot" style="background:#14b8a6;"></span> Portico
               <span class="area-badge" id="badge-portico" style="display:none;"></span>
             </button>
+            <button class="tool-btn" id="btn-solaio" onclick="selectTool('solaio')">
+              <span class="dot" style="background:#0891b2;"></span> Solaio
+              <span class="area-badge" id="badge-solaio" style="display:none;"></span>
+            </button>
           </div>
 
           <!-- Shapes list -->
@@ -1129,9 +1133,6 @@
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'portico')">
               <input type="checkbox" id="chk-portico"> Portico
             </div>
-            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'corte_esclusiva')">
-              <input type="checkbox" id="chk-corte-esclusiva"> Corte esclusiva
-            </div>
           </div>
 
           <div class="nav-buttons">
@@ -1266,7 +1267,8 @@ const CATEGORIES = {
   sottotetto:   { label: 'Sottotetto',   fill: 'rgba(168,85,247,0.25)', stroke: '#a855f7' },
   mansarda:     { label: 'Mansarda',     fill: 'rgba(236,72,153,0.25)', stroke: '#ec4899' },
   ripostiglio:  { label: 'Ripostiglio',  fill: 'rgba(234,179,8,0.25)',  stroke: '#eab308' },
-  portico:      { label: 'Portico',      fill: 'rgba(20,184,166,0.25)', stroke: '#14b8a6' }
+  portico:      { label: 'Portico',      fill: 'rgba(20,184,166,0.25)', stroke: '#14b8a6' },
+  solaio:       { label: 'Solaio',       fill: 'rgba(8,145,178,0.25)',  stroke: '#0891b2' }
 };
 
 const COMPASS_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
@@ -1588,6 +1590,12 @@ async function applySessionSnapshot(snap) {
   selectedNord = snap.selectedNord || '';
   confiniData = snap.confiniData ? JSON.parse(JSON.stringify(snap.confiniData)) : {};
   dettagliData = snap.dettagliData ? JSON.parse(JSON.stringify(snap.dettagliData)) : dettagliData;
+  // Legacy: corte_esclusiva used to be a separate flag; treat it as a synonym
+  // of giardino. Fold any old "true" into giardino and drop the field.
+  if (dettagliData && dettagliData.pertinenze) {
+    if (dettagliData.pertinenze.corte_esclusiva) dettagliData.pertinenze.giardino = true;
+    delete dettagliData.pertinenze.corte_esclusiva;
+  }
   practiceCode = snap.practiceCode || '';
   const codeInput = document.getElementById('practice-code');
   if (codeInput) codeInput.value = practiceCode;
@@ -3169,7 +3177,7 @@ function applyFormDataToUI() {
   // Make sure shape-backed flags are derived before we paint the form.
   if (typeof syncPertinenzeFromShapes === 'function') syncPertinenzeFromShapes();
   const pert = (dettagliData.pertinenze || {});
-  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','giardino','sottotetto','mansarda','portico','corte_esclusiva'];
+  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','giardino','sottotetto','mansarda','portico'];
   pertKeys.forEach(k => {
     const inputId = 'chk-' + k.replace(/_/g, '-');
     const input = document.getElementById(inputId);
@@ -3478,7 +3486,8 @@ function collectDettagli() {
   dettagliData.pertinenze.sottotetto = document.getElementById('chk-sottotetto').checked;
   dettagliData.pertinenze.mansarda = document.getElementById('chk-mansarda').checked;
   dettagliData.pertinenze.portico = document.getElementById('chk-portico').checked;
-  dettagliData.pertinenze.corte_esclusiva = document.getElementById('chk-corte-esclusiva').checked;
+  // corte_esclusiva is a synonym of giardino — keep the field gone.
+  delete dettagliData.pertinenze.corte_esclusiva;
 
   // Force-derive flags from drawn shapes: any pertinenza key that matches at
   // least one shape type across all pages must be true (the user already
@@ -3488,7 +3497,7 @@ function collectDettagli() {
 
 // Pertinenze keys that have a corresponding shape category. Drawing a shape
 // of one of these types must imply pertinenze[key] = true.
-const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','giardino','sottotetto','mansarda','ripostiglio','portico'];
+const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','giardino','sottotetto','mansarda','ripostiglio','portico','solaio'];
 
 function syncPertinenzeFromShapes() {
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
@@ -3569,7 +3578,7 @@ function buildSummary() {
 
   // Pertinenze card
   const pert = dettagliData.pertinenze || {};
-  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico', corte_esclusiva: 'Corte esclusiva' };
+  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico' };
   html += '<div class="summary-card"><h4>Pertinenze</h4>';
   Object.keys(pertLabels).forEach(k => {
     html += '<div class="summary-row"><span class="sr-label">' + pertLabels[k] + '</span><span class="sr-value" style="color:' + (pert[k] ? 'var(--green)' : 'var(--text-dim)') + ';">' + (pert[k] ? 'S\u00EC' : 'No') + '</span></div>';
@@ -3717,9 +3726,32 @@ function buildJSON() {
       sottotetto: !!(dettagliData.pertinenze && dettagliData.pertinenze.sottotetto),
       mansarda: !!(dettagliData.pertinenze && dettagliData.pertinenze.mansarda),
       portico: !!(dettagliData.pertinenze && dettagliData.pertinenze.portico),
-      corte_esclusiva: !!(dettagliData.pertinenze && dettagliData.pertinenze.corte_esclusiva)
+      dettaglio: buildPertinenzeDettaglio(allPolygons)
     }
   };
+}
+
+// Aggregate per-pertinenza details (area, count, distinct piani, polygon list)
+// from the polygon list already produced for `superfici.poligoni`.
+function buildPertinenzeDettaglio(allPolygons) {
+  const out = {};
+  SHAPE_BACKED_PERTINENZE.forEach(k => {
+    const polys = allPolygons.filter(p => p.type === k);
+    if (polys.length === 0) return;
+    const piani = Array.from(new Set(polys.map(p => p.piano).filter(Boolean)));
+    out[k] = {
+      area_mq: parseFloat(polys.reduce((a, p) => a + p.area_mq, 0).toFixed(2)),
+      n_poligoni: polys.length,
+      piani,
+      poligoni: polys.map(p => ({
+        area_mq: parseFloat(p.area_mq.toFixed(2)),
+        piano: p.piano || null,
+        pagina: p.page,
+        pagina_label: p.pageLabel
+      }))
+    };
+  });
+  return out;
 }
 
 
