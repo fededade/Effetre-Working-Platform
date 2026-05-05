@@ -1125,6 +1125,9 @@
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'box_auto')">
               <input type="checkbox" id="chk-box-auto"> Box auto
             </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'posto_auto')">
+              <input type="checkbox" id="chk-posto-auto"> Posto auto
+            </div>
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'giardino')">
               <input type="checkbox" id="chk-giardino"> Giardino
             </div>
@@ -3182,7 +3185,7 @@ function applyFormDataToUI() {
   // Make sure shape-backed flags are derived before we paint the form.
   if (typeof syncPertinenzeFromShapes === 'function') syncPertinenzeFromShapes();
   const pert = (dettagliData.pertinenze || {});
-  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','giardino','sottotetto','mansarda','portico'];
+  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','posto_auto','giardino','sottotetto','mansarda','portico'];
   pertKeys.forEach(k => {
     const inputId = 'chk-' + k.replace(/_/g, '-');
     const input = document.getElementById(inputId);
@@ -3487,6 +3490,7 @@ function collectDettagli() {
   dettagliData.pertinenze.solaio = document.getElementById('chk-solaio').checked;
   dettagliData.pertinenze.ripostiglio = document.getElementById('chk-ripostiglio').checked;
   dettagliData.pertinenze.box_auto = document.getElementById('chk-box-auto').checked;
+  dettagliData.pertinenze.posto_auto = document.getElementById('chk-posto-auto').checked;
   dettagliData.pertinenze.giardino = document.getElementById('chk-giardino').checked;
   dettagliData.pertinenze.sottotetto = document.getElementById('chk-sottotetto').checked;
   dettagliData.pertinenze.mansarda = document.getElementById('chk-mansarda').checked;
@@ -3502,7 +3506,7 @@ function collectDettagli() {
 
 // Pertinenze keys that have a corresponding shape category. Drawing a shape
 // of one of these types must imply pertinenze[key] = true.
-const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','giardino','sottotetto','mansarda','ripostiglio','portico','solaio'];
+const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','posto_auto','giardino','sottotetto','mansarda','ripostiglio','portico','solaio'];
 
 function syncPertinenzeFromShapes() {
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
@@ -3583,7 +3587,7 @@ function buildSummary() {
 
   // Pertinenze card
   const pert = dettagliData.pertinenze || {};
-  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico' };
+  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', posto_auto: 'Posto auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico' };
   html += '<div class="summary-card"><h4>Pertinenze</h4>';
   Object.keys(pertLabels).forEach(k => {
     html += '<div class="summary-row"><span class="sr-label">' + pertLabels[k] + '</span><span class="sr-value" style="color:' + (pert[k] ? 'var(--green)' : 'var(--text-dim)') + ';">' + (pert[k] ? 'S\u00EC' : 'No') + '</span></div>';
@@ -3727,6 +3731,7 @@ function buildJSON() {
       solaio: !!(dettagliData.pertinenze && dettagliData.pertinenze.solaio),
       ripostiglio: !!(dettagliData.pertinenze && dettagliData.pertinenze.ripostiglio),
       box_auto: !!(dettagliData.pertinenze && dettagliData.pertinenze.box_auto),
+      posto_auto: !!(dettagliData.pertinenze && dettagliData.pertinenze.posto_auto),
       giardino: !!(dettagliData.pertinenze && dettagliData.pertinenze.giardino),
       sottotetto: !!(dettagliData.pertinenze && dettagliData.pertinenze.sottotetto),
       mansarda: !!(dettagliData.pertinenze && dettagliData.pertinenze.mansarda),
