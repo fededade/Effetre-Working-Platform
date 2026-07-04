@@ -8,6 +8,9 @@
     <!-- ⭐ FIREBASE -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- ⚙️ AMBIENTE (produzione/collaudo): seleziona il database corretto -->
+    <script src="/env-config.js"></script>
     
     <!-- LIBRERIE ESTERNE -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -282,17 +285,10 @@
         }
 
         // ============================================================
-        // FIREBASE INIT
+        // FIREBASE INIT — configurazione per-ambiente da /env-config.js
+        // (produzione o collaudo in base al dominio, vedi STAGING.md)
         // ============================================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyAxuZxv3_7w4cR01W4dRrGOJ3-qbSsL868",
-            authDomain: "gestionale-effetre.firebaseapp.com",
-            projectId: "gestionale-effetre",
-            storageBucket: "gestionale-effetre.firebasestorage.app",
-            messagingSenderId: "418072647086",
-            appId: "1:418072647086:web:bbba16fa2e6c6140fee43f",
-            measurementId: "G-DYSPC79396"
-        };
+        const firebaseConfig = window.EFFETRE_ENV ? window.EFFETRE_ENV.firebaseConfig : null;
 
         let db = null;
         let firebaseInitialized = false;

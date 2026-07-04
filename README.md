@@ -2,6 +2,8 @@
 
 Sistema di gestione pratiche per Effetre Properties SRLS.
 
+> 🧪 **Ambiente di collaudo**: lo sviluppo avviene sul branch `staging` con un database Firebase separato, senza toccare il gestionale ufficiale. Il file `public/env-config.js` seleziona automaticamente il database in base al dominio. Guida completa in [STAGING.md](STAGING.md).
+
 ## 📁 Struttura
 
 ```

@@ -8,6 +8,9 @@
     <!-- ⭐ FIREBASE: STEP 1 - Aggiungi gli script Firebase PRIMA di tutto -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- ⚙️ AMBIENTE (produzione/collaudo): seleziona il database corretto -->
+    <script src="/env-config.js"></script>
     
     <!-- 📧 EMAILJS: Per invio email recupero password -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
@@ -443,25 +446,15 @@
         const { useState, useEffect, useRef } = React;
 
         // ============================================================
-        // ⭐ FIREBASE: CONFIGURAZIONE - PROGETTO "GESTIONALE EFFETRE"
+        // ⭐ FIREBASE: CONFIGURAZIONE PER-AMBIENTE
         // ============================================================
-        // ✅ CONFIGURAZIONE COMPLETA AL 100%!
-        // Tutti i valori sono stati configurati correttamente.
-        // 
-        // Progetto: Gestionale Effetre
-        // ID: gestionale-effetre
-        // App ID: 1:418072647086:web:bbba16fa2e6c6140fee43f
+        // La configurazione NON è più cablata qui: viene fornita da
+        // /env-config.js in base al dominio (produzione o collaudo).
+        //   • Produzione  → progetto "gestionale-effetre" (dati reali)
+        //   • Collaudo    → progetto di prova (vedi STAGING.md)
         // ============================================================
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyAxuZxv3_7w4cR01W4dRrGOJ3-qbSsL868",
-            authDomain: "gestionale-effetre.firebaseapp.com",
-            projectId: "gestionale-effetre",
-            storageBucket: "gestionale-effetre.firebasestorage.app",
-            messagingSenderId: "418072647086",
-            appId: "1:418072647086:web:bbba16fa2e6c6140fee43f",
-            measurementId: "G-DYSPC79396"
-        };
+
+        const firebaseConfig = window.EFFETRE_ENV ? window.EFFETRE_ENV.firebaseConfig : null;
 
         // Inizializza Firebase
         let db = null;
