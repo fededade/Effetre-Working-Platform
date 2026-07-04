@@ -37,19 +37,17 @@
     // ------------------------------------------------------------
     // 🟠 COLLAUDO / STAGING — progetto Firebase di prova
     // ------------------------------------------------------------
-    // DA CONFIGURARE: crea un secondo progetto su
-    // https://console.firebase.google.com (es. "gestionale-effetre-staging"),
-    // abilita Firestore, aggiungi una App Web e incolla qui la sua
-    // configurazione al posto dei segnaposto "REPLACE_ME".
-    // Istruzioni passo-passo in STAGING.md.
+    // ✅ Configurato: progetto "gestionale-effetre-staging".
+    // I dati di collaudo vivono qui, completamente separati dal
+    // database ufficiale. Istruzioni in STAGING.md.
     // ------------------------------------------------------------
     var STAGING_FIREBASE_CONFIG = {
-        apiKey: "REPLACE_ME",
-        authDomain: "REPLACE_ME.firebaseapp.com",
-        projectId: "REPLACE_ME",
-        storageBucket: "REPLACE_ME.firebasestorage.app",
-        messagingSenderId: "REPLACE_ME",
-        appId: "REPLACE_ME"
+        apiKey: "AIzaSyBREzp0X64Y2zazMGSDZXLpg59Y6gnOqXw",
+        authDomain: "gestionale-effetre-staging.firebaseapp.com",
+        projectId: "gestionale-effetre-staging",
+        storageBucket: "gestionale-effetre-staging.firebasestorage.app",
+        messagingSenderId: "821519797248",
+        appId: "1:821519797248:web:b8a7ed1beaff22c1e65ce5"
     };
 
     // ------------------------------------------------------------
