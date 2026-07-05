@@ -1136,6 +1136,19 @@
               </select>
               <div id="distribuzione-servizi" style="display:none; margin-top:12px;"></div>
             </div>
+
+            <div class="detail-group">
+              <div class="group-label">Altri locali</div>
+              <div class="checkbox-toggle" id="toggle-lavanderia" onclick="toggleAltroLocale('lavanderia')">
+                <input type="checkbox" id="chk-lavanderia"> Lavanderia
+              </div>
+              <div class="checkbox-toggle" id="toggle-cabina-armadio" onclick="toggleAltroLocale('cabina_armadio')">
+                <input type="checkbox" id="chk-cabina-armadio"> Cabina armadio
+              </div>
+              <div class="checkbox-toggle" id="toggle-studio" onclick="toggleAltroLocale('studio')">
+                <input type="checkbox" id="chk-studio"> Studio
+              </div>
+            </div>
           </div>
 
           <!-- Composizione Mansarda (mostrata solo se una mansarda è perimetrata) -->
@@ -1430,7 +1443,8 @@ let dettagliData = {
   tipologia: '', ascensore: '', ristrutturazione: '', ristrutturazione_desc: '',
   piani_fuori_terra: 1, piani_entroterra: 0,
   num_camere: '', soggiorno: '', cucina_abitabile: false, angolo_cottura: false,
-  angolo_cottura_extra: false, ingresso: '', mansarda: null
+  angolo_cottura_extra: false, ingresso: '', mansarda: null,
+  lavanderia: false, cabina_armadio: false, studio: false
 };
 
 // ==========================================
@@ -3272,6 +3286,9 @@ function applyFormDataToUI() {
   _syncCheckboxToggle('toggle-cucina', 'chk-cucina-abitabile', dettagliData.cucina_abitabile);
   _syncCheckboxToggle('toggle-angolo', 'chk-angolo-cottura', dettagliData.angolo_cottura);
   _syncCheckboxToggle('toggle-angolo-extra', 'chk-angolo-cottura-extra', dettagliData.angolo_cottura_extra);
+  _syncCheckboxToggle('toggle-lavanderia', 'chk-lavanderia', dettagliData.lavanderia);
+  _syncCheckboxToggle('toggle-cabina-armadio', 'chk-cabina-armadio', dettagliData.cabina_armadio);
+  _syncCheckboxToggle('toggle-studio', 'chk-studio', dettagliData.studio);
   // Make sure shape-backed flags are derived before we paint the form.
   if (typeof syncPertinenzeFromShapes === 'function') syncPertinenzeFromShapes();
   const pert = (dettagliData.pertinenze || {});
@@ -3539,6 +3556,15 @@ function toggleAngoloExtra() {
   _syncCheckboxToggle('toggle-angolo-extra', 'chk-angolo-cottura-extra', dettagliData.angolo_cottura_extra);
 }
 
+// Toggle generico per gli "altri locali" della composizione (lavanderia,
+// cabina armadio, studio). key = nome del campo in dettagliData.
+function toggleAltroLocale(key) {
+  const newVal = !dettagliData[key];
+  dettagliData[key] = newVal;
+  const dash = key.replace(/_/g, '-');
+  _syncCheckboxToggle('toggle-' + dash, 'chk-' + dash, newVal);
+}
+
 function togglePertinenza(el, key) {
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
   const newVal = !dettagliData.pertinenze[key];
@@ -3697,6 +3723,9 @@ function collectDettagli() {
   dettagliData.piani_fuori_terra = parseInt(document.getElementById('piani-fuori-terra').value) || 1;
   dettagliData.piani_entroterra = parseInt(document.getElementById('piani-entroterra').value) || 0;
   dettagliData.num_servizi_igienici = document.getElementById('num-servizi-igienici').value;
+  dettagliData.lavanderia = document.getElementById('chk-lavanderia').checked;
+  dettagliData.cabina_armadio = document.getElementById('chk-cabina-armadio').checked;
+  dettagliData.studio = document.getElementById('chk-studio').checked;
 
   // Collect distribuzione camere/servizi per piano (multi-livello)
   const distCamereSelects = document.querySelectorAll('.dist-camere-select');
@@ -3833,6 +3862,11 @@ function buildSummary() {
   html += '<div class="summary-row"><span class="sr-label">Soggiorno</span><span class="sr-value">' + (dettagliData.soggiorno || '-') + '</span></div>';
   html += '<div class="summary-row"><span class="sr-label">Cucina</span><span class="sr-value">' + cucinaLabel + '</span></div>';
   html += '<div class="summary-row"><span class="sr-label">Ingresso</span><span class="sr-value">' + (dettagliData.ingresso || '-') + '</span></div>';
+  const altriLocali = [];
+  if (dettagliData.lavanderia) altriLocali.push('Lavanderia');
+  if (dettagliData.cabina_armadio) altriLocali.push('Cabina armadio');
+  if (dettagliData.studio) altriLocali.push('Studio');
+  html += '<div class="summary-row"><span class="sr-label">Altri locali</span><span class="sr-value">' + (altriLocali.length ? altriLocali.join(', ') : '-') + '</span></div>';
   html += '</div>';
 
   // Mansarda card (solo se perimetrata)
@@ -3987,6 +4021,9 @@ function buildJSON() {
       angolo_cottura: dettagliData.angolo_cottura,
       angolo_cottura_extra: dettagliData.angolo_cottura_extra,
       ingresso: dettagliData.ingresso || null,
+      lavanderia: !!dettagliData.lavanderia,
+      cabina_armadio: !!dettagliData.cabina_armadio,
+      studio: !!dettagliData.studio,
       mansarda: buildMansardaJSON()
     },
     pertinenze: {
