@@ -180,6 +180,20 @@
   }
   .tool-btn.active .area-badge { background: rgba(0,0,0,0.15); }
 
+  /* Collapsible tool group (accessori di pertinenza) */
+  .tool-group { margin-bottom: 6px; }
+  .tool-group-toggle { margin-bottom: 4px; }
+  .tool-group-toggle .grp-caret {
+    margin-left: 8px; font-size: 11px; color: var(--text-dim); flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  .tool-group-toggle.open .grp-caret { color: var(--gold); }
+  .tool-group-toggle.active .grp-caret { color: #000; }
+  .tool-group-body {
+    padding-left: 12px; margin: 0 0 4px 6px; border-left: 2px solid var(--border);
+  }
+  .tool-group-body .tool-btn { font-size: 12.5px; padding: 10px 12px; }
+
   /* Scale info */
   .scale-info {
     margin-top: 8px; padding: 8px 12px; background: var(--bg-input); border-radius: 8px;
@@ -854,18 +868,32 @@
               <span class="dot" style="background:#6366f1;"></span> Terrazzo
               <span class="area-badge" id="badge-terrazzo" style="display:none;"></span>
             </button>
-            <button class="tool-btn" id="btn-cantina" onclick="selectTool('cantina')">
-              <span class="dot" style="background:#10b981;"></span> Cantina
-              <span class="area-badge" id="badge-cantina" style="display:none;"></span>
-            </button>
-            <button class="tool-btn" id="btn-box_auto" onclick="selectTool('box_auto')">
-              <span class="dot" style="background:#f97316;"></span> Box auto
-              <span class="area-badge" id="badge-box_auto" style="display:none;"></span>
-            </button>
-            <button class="tool-btn" id="btn-posto_auto" onclick="selectTool('posto_auto')">
-              <span class="dot" style="background:#64748b;"></span> Posto auto
-              <span class="area-badge" id="badge-posto_auto" style="display:none;"></span>
-            </button>
+            <!-- Accessori di pertinenza (sottomenù a comparsa) -->
+            <div class="tool-group">
+              <button class="tool-btn tool-group-toggle" id="btn-grp-pertinenze" onclick="toggleToolGroup('pertinenze')">
+                <span class="dot" style="background:linear-gradient(135deg,#10b981,#f97316,#64748b,#78716c);"></span> Pertinenze accessorie
+                <span class="area-badge" id="badge-grp-pertinenze" style="display:none;"></span>
+                <span class="grp-caret" id="caret-pertinenze">&#9656;</span>
+              </button>
+              <div class="tool-group-body" id="grp-pertinenze" style="display:none;">
+                <button class="tool-btn" id="btn-cantina" onclick="selectTool('cantina')">
+                  <span class="dot" style="background:#10b981;"></span> Cantina
+                  <span class="area-badge" id="badge-cantina" style="display:none;"></span>
+                </button>
+                <button class="tool-btn" id="btn-box_auto" onclick="selectTool('box_auto')">
+                  <span class="dot" style="background:#f97316;"></span> Box auto
+                  <span class="area-badge" id="badge-box_auto" style="display:none;"></span>
+                </button>
+                <button class="tool-btn" id="btn-posto_auto" onclick="selectTool('posto_auto')">
+                  <span class="dot" style="background:#64748b;"></span> Posto auto
+                  <span class="area-badge" id="badge-posto_auto" style="display:none;"></span>
+                </button>
+                <button class="tool-btn" id="btn-posto_moto" onclick="selectTool('posto_moto')">
+                  <span class="dot" style="background:#78716c;"></span> Posto moto
+                  <span class="area-badge" id="badge-posto_moto" style="display:none;"></span>
+                </button>
+              </div>
+            </div>
             <button class="tool-btn" id="btn-giardino" onclick="selectTool('giardino')">
               <span class="dot" style="background:#22c55e;"></span> Giardino
               <span class="area-badge" id="badge-giardino" style="display:none;"></span>
@@ -1110,6 +1138,35 @@
             </div>
           </div>
 
+          <!-- Composizione Mansarda (mostrata solo se una mansarda è perimetrata) -->
+          <div class="composizione-block" id="mansarda-block" style="display:none;">
+            <div class="detail-section-title">Composizione Mansarda</div>
+            <p class="subtitle" style="margin:-4px 0 12px;">La mansarda risulta perimetrata. Indica com'&egrave; suddivisa internamente per generare la descrizione.</p>
+
+            <div class="detail-group">
+              <label for="mansarda-n-locali">Da quanti locali &egrave; composta la mansarda?</label>
+              <select id="mansarda-n-locali" onchange="renderMansardaLocali()">
+                <option value="">-- Seleziona --</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+              </select>
+              <div id="mansarda-locali-list" style="margin-top:12px;"></div>
+            </div>
+
+            <div class="detail-group">
+              <div class="group-label">Servizio igienico</div>
+              <div class="checkbox-toggle" id="toggle-mansarda-wc" onclick="toggleMansardaWc()">
+                <input type="checkbox" id="chk-mansarda-wc"> W.C. presente in mansarda
+              </div>
+            </div>
+          </div>
+
           <!-- Pertinenze -->
           <div class="pertinenze-block">
             <div class="detail-section-title">Pertinenze</div>
@@ -1127,6 +1184,9 @@
             </div>
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'posto_auto')">
               <input type="checkbox" id="chk-posto-auto"> Posto auto
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'posto_moto')">
+              <input type="checkbox" id="chk-posto-moto"> Posto moto
             </div>
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'giardino')">
               <input type="checkbox" id="chk-giardino"> Giardino
@@ -1271,6 +1331,7 @@ const CATEGORIES = {
   cantina:      { label: 'Cantina',      fill: 'rgba(16,185,129,0.25)',  stroke: '#10b981' },
   box_auto:     { label: 'Box auto',     fill: 'rgba(249,115,22,0.25)', stroke: '#f97316' },
   posto_auto:   { label: 'Posto auto',   fill: 'rgba(100,116,139,0.25)', stroke: '#64748b' },
+  posto_moto:   { label: 'Posto moto',   fill: 'rgba(120,113,108,0.25)', stroke: '#78716c' },
   giardino:     { label: 'Giardino',     fill: 'rgba(34,197,94,0.25)',   stroke: '#22c55e' },
   sottotetto:   { label: 'Sottotetto',   fill: 'rgba(168,85,247,0.25)', stroke: '#a855f7' },
   mansarda:     { label: 'Mansarda',     fill: 'rgba(236,72,153,0.25)', stroke: '#ec4899' },
@@ -1278,6 +1339,9 @@ const CATEGORIES = {
   portico:      { label: 'Portico',      fill: 'rgba(20,184,166,0.25)', stroke: '#14b8a6' },
   solaio:       { label: 'Solaio',       fill: 'rgba(8,145,178,0.25)',  stroke: '#0891b2' }
 };
+
+// Categorie raccolte nel sottomenù "Pertinenze accessorie" della barra strumenti.
+const TOOL_GROUP_PERTINENZE = ['cantina', 'box_auto', 'posto_auto', 'posto_moto'];
 
 const COMPASS_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 const CONFINI_LATI = ['Nord', 'Est', 'Sud', 'Ovest'];
@@ -1366,7 +1430,7 @@ let dettagliData = {
   tipologia: '', ascensore: '', ristrutturazione: '', ristrutturazione_desc: '',
   piani_fuori_terra: 1, piani_entroterra: 0,
   num_camere: '', soggiorno: '', cucina_abitabile: false, angolo_cottura: false,
-  angolo_cottura_extra: false, ingresso: ''
+  angolo_cottura_extra: false, ingresso: '', mansarda: null
 };
 
 // ==========================================
@@ -2216,6 +2280,18 @@ function updatePageIndicator() {
 // STEP 2: CANVAS DRAWING ENGINE
 // ==========================================
 
+// Expand/collapse a collapsible tool group (e.g. "Pertinenze accessorie").
+function toggleToolGroup(id) {
+  const body = document.getElementById('grp-' + id);
+  const toggle = document.getElementById('btn-grp-' + id);
+  const caret = document.getElementById('caret-' + id);
+  if (!body) return;
+  const willOpen = body.style.display === 'none';
+  body.style.display = willOpen ? '' : 'none';
+  if (toggle) toggle.classList.toggle('open', willOpen);
+  if (caret) caret.innerHTML = willOpen ? '&#9662;' : '&#9656;';
+}
+
 function selectTool(tool) {
   // Deactivate all
   document.querySelectorAll('.tool-btn, .float-toolbar button').forEach(b => b.classList.remove('active'));
@@ -2239,7 +2315,21 @@ function selectTool(tool) {
   // Activate button
   const btnId = tool === 'pan' ? 'btn-pan' : 'btn-' + tool;
   const btn = document.getElementById(btnId);
-  if (btn) btn.classList.add('active');
+  if (btn) {
+    btn.classList.add('active');
+    // If the button lives inside a collapsed tool group, expand it so the
+    // active selection stays visible.
+    const grpBody = btn.closest ? btn.closest('.tool-group-body') : null;
+    if (grpBody && grpBody.style.display === 'none') {
+      grpBody.style.display = '';
+      const toggle = grpBody.previousElementSibling;
+      if (toggle) {
+        toggle.classList.add('open');
+        const caret = toggle.querySelector('.grp-caret');
+        if (caret) caret.innerHTML = '&#9662;';
+      }
+    }
+  }
 
   // Hints
   if (tool === 'scale') {
@@ -3185,7 +3275,7 @@ function applyFormDataToUI() {
   // Make sure shape-backed flags are derived before we paint the form.
   if (typeof syncPertinenzeFromShapes === 'function') syncPertinenzeFromShapes();
   const pert = (dettagliData.pertinenze || {});
-  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','posto_auto','giardino','sottotetto','mansarda','portico'];
+  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','posto_auto','posto_moto','giardino','sottotetto','mansarda','portico'];
   pertKeys.forEach(k => {
     const inputId = 'chk-' + k.replace(/_/g, '-');
     const input = document.getElementById(inputId);
@@ -3210,6 +3300,9 @@ function applyFormDataToUI() {
     const found = ds.find(d => d.piano === piano);
     if (found) sel.value = String(found.quantita);
   });
+
+  // Sezione mansarda (visibile solo se una mansarda è perimetrata)
+  initMansardaSection();
 }
 
 function initStep5MultiLevel() {
@@ -3285,6 +3378,14 @@ function updateTotals() {
       else { badge.style.display = 'none'; }
     }
   });
+
+  // Aggregate badge for the "Pertinenze accessorie" collapsible group.
+  const grpSum = TOOL_GROUP_PERTINENZE.reduce((a, k) => a + (tots[k] || 0), 0);
+  const grpBadge = document.getElementById('badge-grp-pertinenze');
+  if (grpBadge) {
+    if (grpSum > 0) { grpBadge.style.display = ''; grpBadge.textContent = grpSum.toFixed(1) + ' m\u00B2'; }
+    else { grpBadge.style.display = 'none'; }
+  }
 
   document.getElementById('tot-grand').textContent = grand.toFixed(2) + ' m\u00B2';
 }
@@ -3445,6 +3546,146 @@ function togglePertinenza(el, key) {
   el.classList.toggle('checked', newVal);
   const chk = el.querySelector('input[type=checkbox]');
   if (chk) chk.checked = newVal;
+  // Show/hide the mansarda composition section as the checkbox changes.
+  if (key === 'mansarda' && typeof initMansardaSection === 'function') initMansardaSection();
+}
+
+// ==========================================
+// MANSARDA (composizione locali) — mostrata quando una mansarda è perimetrata
+// ==========================================
+
+// True se esiste almeno un poligono di tipo "mansarda" (su qualsiasi pagina)
+// oppure se la relativa pertinenza è spuntata manualmente.
+function hasMansardaPerimetrata() {
+  const present = new Set();
+  (shapes || []).forEach(s => { if (s && s.type) present.add(s.type); });
+  Object.keys(pageStates || {}).forEach(k => {
+    const ps = pageStates[k];
+    if (ps && Array.isArray(ps.shapes)) ps.shapes.forEach(s => { if (s && s.type) present.add(s.type); });
+  });
+  if (present.has('mansarda')) return true;
+  return !!(dettagliData.pertinenze && dettagliData.pertinenze.mansarda);
+}
+
+// Elenco dei piani a cui appartengono i poligoni "mansarda".
+function getMansardaPiani() {
+  const set = new Set();
+  const scan = (arr) => (arr || []).forEach(s => { if (s && s.type === 'mansarda' && s.piano) set.add(s.piano); });
+  scan(shapes);
+  Object.keys(pageStates || {}).forEach(k => { const ps = pageStates[k]; if (ps) scan(ps.shapes); });
+  return Array.from(set);
+}
+
+// Assicura che dettagliData.mansarda esista con la forma attesa.
+function ensureMansardaData() {
+  if (!dettagliData.mansarda || typeof dettagliData.mansarda !== 'object') {
+    dettagliData.mansarda = { n_locali: 0, locali: [], wc_presente: false };
+  }
+  if (!Array.isArray(dettagliData.mansarda.locali)) dettagliData.mansarda.locali = [];
+  return dettagliData.mansarda;
+}
+
+// Genera le righe "Locale N: residenziale / non residenziale" in base al
+// numero di locali selezionato, preservando le scelte già effettuate.
+function renderMansardaLocali() {
+  const sel = document.getElementById('mansarda-n-locali');
+  const box = document.getElementById('mansarda-locali-list');
+  if (!sel || !box) return;
+  const n = parseInt(sel.value) || 0;
+  const m = ensureMansardaData();
+  m.n_locali = n;
+  const cur = m.locali;
+  const next = [];
+  for (let i = 0; i < n; i++) {
+    next.push({ tipo: (cur[i] && cur[i].tipo) ? cur[i].tipo : 'residenziale' });
+  }
+  m.locali = next;
+  if (n === 0) { box.innerHTML = ''; return; }
+  let html = '<div style="background:var(--bg-input);border-radius:10px;padding:14px 16px;">';
+  for (let i = 0; i < n; i++) {
+    const tipo = next[i].tipo;
+    html += '<div style="margin-bottom:' + (i === n - 1 ? '0' : '12px') + ';">';
+    html += '<div class="group-label" style="margin-bottom:6px;">Locale ' + (i + 1) + '</div>';
+    html += '<div class="radio-group">';
+    html += '<div class="radio-option' + (tipo === 'residenziale' ? ' selected' : '') + '" onclick="setMansardaLocaleTipo(' + i + ",'residenziale',this)\">Residenziale</div>";
+    html += '<div class="radio-option' + (tipo === 'non_residenziale' ? ' selected' : '') + '" onclick="setMansardaLocaleTipo(' + i + ",'non_residenziale',this)\">Non residenziale</div>";
+    html += '</div></div>';
+  }
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+function setMansardaLocaleTipo(idx, tipo, el) {
+  const m = ensureMansardaData();
+  if (!m.locali[idx]) m.locali[idx] = { tipo: tipo };
+  m.locali[idx].tipo = tipo;
+  const group = el.parentElement;
+  if (group) group.querySelectorAll('.radio-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function toggleMansardaWc() {
+  const m = ensureMansardaData();
+  m.wc_presente = !m.wc_presente;
+  _syncCheckboxToggle('toggle-mansarda-wc', 'chk-mansarda-wc', m.wc_presente);
+}
+
+// Mostra/nasconde e ripopola la sezione mansarda. Chiamata all'ingresso dello step 5.
+function initMansardaSection() {
+  const block = document.getElementById('mansarda-block');
+  if (!block) return;
+  const show = hasMansardaPerimetrata();
+  block.style.display = show ? '' : 'none';
+  if (!show) return;
+  const m = ensureMansardaData();
+  const sel = document.getElementById('mansarda-n-locali');
+  if (sel) sel.value = m.n_locali ? String(m.n_locali) : '';
+  renderMansardaLocali();
+  _syncCheckboxToggle('toggle-mansarda-wc', 'chk-mansarda-wc', !!m.wc_presente);
+}
+
+// Numero → parola italiana per la descrizione (1 = "un", altrimenti la cifra).
+function mansardaLocaleFrag(n, tipo) {
+  const num = n === 1 ? 'un' : String(n);
+  const noun = n === 1 ? 'locale' : 'locali';
+  let adj;
+  if (tipo === 'residenziale') adj = n === 1 ? 'residenziale' : 'residenziali';
+  else adj = n === 1 ? 'non residenziale' : 'non residenziali';
+  return num + ' ' + noun + ' ' + adj;
+}
+
+// Costruisce il frammento di descrizione della mansarda, es.:
+// "oltre a disimpegno, 2 locali residenziali, un locale non residenziale al piano secondo mansardato".
+function buildMansardaDescription(nRes, nNon, wc, piani) {
+  const segs = ['disimpegno'];
+  if (nRes > 0) segs.push(mansardaLocaleFrag(nRes, 'residenziale'));
+  if (nNon > 0) segs.push(mansardaLocaleFrag(nNon, 'non_residenziale'));
+  if (wc) segs.push('w.c.');
+  const pianoStr = (piani && piani.length)
+    ? (' al ' + piani.join(' e ').toLowerCase() + ' mansardato')
+    : ' al piano mansardato';
+  return 'oltre a ' + segs.join(', ') + pianoStr;
+}
+
+// Oggetto mansarda pronto per il JSON (null se nessuna mansarda perimetrata).
+function buildMansardaJSON() {
+  if (!hasMansardaPerimetrata()) return null;
+  const m = ensureMansardaData();
+  const n = m.n_locali || 0;
+  const locali = (m.locali || []).slice(0, n);
+  const nRes = locali.filter(l => l.tipo === 'residenziale').length;
+  const nNon = locali.filter(l => l.tipo === 'non_residenziale').length;
+  const piani = getMansardaPiani();
+  return {
+    perimetrata: true,
+    n_locali: n,
+    locali: locali.map((l, i) => ({ n: i + 1, tipo: l.tipo })),
+    n_locali_residenziali: nRes,
+    n_locali_non_residenziali: nNon,
+    wc_presente: !!m.wc_presente,
+    piani: piani,
+    descrizione: buildMansardaDescription(nRes, nNon, !!m.wc_presente, piani)
+  };
 }
 
 // ==========================================
@@ -3491,6 +3732,7 @@ function collectDettagli() {
   dettagliData.pertinenze.ripostiglio = document.getElementById('chk-ripostiglio').checked;
   dettagliData.pertinenze.box_auto = document.getElementById('chk-box-auto').checked;
   dettagliData.pertinenze.posto_auto = document.getElementById('chk-posto-auto').checked;
+  dettagliData.pertinenze.posto_moto = document.getElementById('chk-posto-moto').checked;
   dettagliData.pertinenze.giardino = document.getElementById('chk-giardino').checked;
   dettagliData.pertinenze.sottotetto = document.getElementById('chk-sottotetto').checked;
   dettagliData.pertinenze.mansarda = document.getElementById('chk-mansarda').checked;
@@ -3502,11 +3744,19 @@ function collectDettagli() {
   // least one shape type across all pages must be true (the user already
   // declared it by drawing it).
   syncPertinenzeFromShapes();
+
+  // Composizione mansarda: se non c'è una mansarda perimetrata azzera i dati,
+  // altrimenti mantiene lo stato raccolto live dai controlli della sezione.
+  if (hasMansardaPerimetrata()) {
+    ensureMansardaData();
+  } else {
+    dettagliData.mansarda = null;
+  }
 }
 
 // Pertinenze keys that have a corresponding shape category. Drawing a shape
 // of one of these types must imply pertinenze[key] = true.
-const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','posto_auto','giardino','sottotetto','mansarda','ripostiglio','portico','solaio'];
+const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','posto_auto','posto_moto','giardino','sottotetto','mansarda','ripostiglio','portico','solaio'];
 
 function syncPertinenzeFromShapes() {
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
@@ -3585,9 +3835,21 @@ function buildSummary() {
   html += '<div class="summary-row"><span class="sr-label">Ingresso</span><span class="sr-value">' + (dettagliData.ingresso || '-') + '</span></div>';
   html += '</div>';
 
+  // Mansarda card (solo se perimetrata)
+  const mans = buildMansardaJSON();
+  if (mans) {
+    html += '<div class="summary-card"><h4>Composizione Mansarda</h4>';
+    html += '<div class="summary-row"><span class="sr-label">N. locali</span><span class="sr-value">' + (mans.n_locali || '-') + '</span></div>';
+    html += '<div class="summary-row"><span class="sr-label">Residenziali</span><span class="sr-value">' + mans.n_locali_residenziali + '</span></div>';
+    html += '<div class="summary-row"><span class="sr-label">Non residenziali</span><span class="sr-value">' + mans.n_locali_non_residenziali + '</span></div>';
+    html += '<div class="summary-row"><span class="sr-label">W.C.</span><span class="sr-value" style="color:' + (mans.wc_presente ? 'var(--green)' : 'var(--text-dim)') + ';">' + (mans.wc_presente ? 'Sì' : 'No') + '</span></div>';
+    html += '<div class="summary-row" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;"><span class="sr-value" style="font-style:italic;color:var(--text-dim);max-width:100%;text-align:left;line-height:1.5;">' + mans.descrizione + '</span></div>';
+    html += '</div>';
+  }
+
   // Pertinenze card
   const pert = dettagliData.pertinenze || {};
-  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', posto_auto: 'Posto auto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico' };
+  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', posto_auto: 'Posto auto', posto_moto: 'Posto moto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico' };
   html += '<div class="summary-card"><h4>Pertinenze</h4>';
   Object.keys(pertLabels).forEach(k => {
     html += '<div class="summary-row"><span class="sr-label">' + pertLabels[k] + '</span><span class="sr-value" style="color:' + (pert[k] ? 'var(--green)' : 'var(--text-dim)') + ';">' + (pert[k] ? 'S\u00EC' : 'No') + '</span></div>';
@@ -3724,7 +3986,8 @@ function buildJSON() {
       cucina_abitabile: dettagliData.cucina_abitabile,
       angolo_cottura: dettagliData.angolo_cottura,
       angolo_cottura_extra: dettagliData.angolo_cottura_extra,
-      ingresso: dettagliData.ingresso || null
+      ingresso: dettagliData.ingresso || null,
+      mansarda: buildMansardaJSON()
     },
     pertinenze: {
       cantina: !!(dettagliData.pertinenze && dettagliData.pertinenze.cantina),
@@ -3732,6 +3995,7 @@ function buildJSON() {
       ripostiglio: !!(dettagliData.pertinenze && dettagliData.pertinenze.ripostiglio),
       box_auto: !!(dettagliData.pertinenze && dettagliData.pertinenze.box_auto),
       posto_auto: !!(dettagliData.pertinenze && dettagliData.pertinenze.posto_auto),
+      posto_moto: !!(dettagliData.pertinenze && dettagliData.pertinenze.posto_moto),
       giardino: !!(dettagliData.pertinenze && dettagliData.pertinenze.giardino),
       sottotetto: !!(dettagliData.pertinenze && dettagliData.pertinenze.sottotetto),
       mansarda: !!(dettagliData.pertinenze && dettagliData.pertinenze.mansarda),
