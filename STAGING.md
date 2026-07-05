@@ -56,3 +56,7 @@ Se dopo un merge qualcosa non va: **Vercel → Deployments → deployment preced
 - **EmailJS** (recupero password) usa le stesse credenziali in entrambi gli ambienti: in collaudo le email partono solo per gli utenti di prova. Se vuoi isolarlo del tutto, crea un template/servizio EmailJS separato.
 - **Regole Firestore**: il progetto di prova in modalità test è aperto; per il progetto ufficiale valuta regole più restrittive (oggi sono `allow read, write: if true`).
 - **`api/gemini.js`** è identico nei due ambienti; cambia solo l'eventuale chiave nelle env var Vercel (Production vs Preview).
+
+## Import automatico da OptiRoute
+
+Il gestionale importa ogni ora (e all'avvio, badge in basso a destra) i sopralluoghi CONFERMATI che OptiRoute scrive nella collection Firestore `optiroute_sync`: le pratiche nuove vengono create in `pratiche_items` nel formato standard (numero "826.361", codice ISP, stato disponibile), quelle esistenti vengono aggiornate (giorno, ordine, telefono, referente, note) con voce nello storico. I documenti importati vengono marcati `importato: true` (mai duplicati). Import manuale: click sul badge o `window.importaDaOptiRoute()` in console.
