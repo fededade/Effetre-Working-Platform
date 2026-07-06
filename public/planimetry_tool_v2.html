@@ -1066,6 +1066,24 @@
             <textarea id="ristrutturazione-desc" placeholder="Descrivi le ristrutturazioni effettuate..."></textarea>
           </div>
 
+          <!-- Epoca dell'immobile: anno di costruzione/ristrutturazione o nuova costruzione -->
+          <div class="detail-section-title">Epoca dell'Immobile</div>
+          <div class="detail-group">
+            <div class="checkbox-toggle" id="toggle-nuova-costruzione" onclick="toggleNuovaCostruzione()">
+              <input type="checkbox" id="chk-nuova-costruzione"> Nuova costruzione
+            </div>
+          </div>
+          <div class="detail-row" id="anni-group">
+            <div class="detail-group">
+              <label for="anno-costruzione">Anno di costruzione</label>
+              <input type="number" id="anno-costruzione" min="1800" max="2100" step="1" placeholder="es. 1975" inputmode="numeric">
+            </div>
+            <div class="detail-group">
+              <label for="anno-ristrutturazione">Anno di ristrutturazione</label>
+              <input type="number" id="anno-ristrutturazione" min="1800" max="2100" step="1" placeholder="es. 2015" inputmode="numeric">
+            </div>
+          </div>
+
           <!-- Piani del fabbricato -->
           <div class="detail-section-title">Piani del Fabbricato</div>
           <div class="detail-row">
@@ -1444,7 +1462,8 @@ let dettagliData = {
   piani_fuori_terra: 1, piani_entroterra: 0,
   num_camere: '', soggiorno: '', cucina_abitabile: false, angolo_cottura: false,
   angolo_cottura_extra: false, ingresso: '', mansarda: null,
-  lavanderia: false, cabina_armadio: false, studio: false
+  lavanderia: false, cabina_armadio: false, studio: false,
+  anno_costruzione: '', anno_ristrutturazione: '', nuova_costruzione: false
 };
 
 // ==========================================
@@ -3261,6 +3280,10 @@ function applyFormDataToUI() {
   setVal('piani-fuori-terra', dettagliData.piani_fuori_terra != null ? dettagliData.piani_fuori_terra : 1);
   setVal('piani-entroterra', dettagliData.piani_entroterra != null ? dettagliData.piani_entroterra : 0);
   setVal('num-servizi-igienici', dettagliData.num_servizi_igienici || '');
+  setVal('anno-costruzione', dettagliData.anno_costruzione || '');
+  setVal('anno-ristrutturazione', dettagliData.anno_ristrutturazione || '');
+  _syncCheckboxToggle('toggle-nuova-costruzione', 'chk-nuova-costruzione', dettagliData.nuova_costruzione);
+  applyNuovaCostruzioneUI();
 
   // ristrutturazione-desc-group visibility
   const rgroup = document.getElementById('ristrutturazione-desc-group');
@@ -3565,6 +3588,25 @@ function toggleAltroLocale(key) {
   _syncCheckboxToggle('toggle-' + dash, 'chk-' + dash, newVal);
 }
 
+// Casella "Nuova costruzione": quando attiva, i campi anno vengono svuotati e
+// disabilitati (l'anno non è richiesto per una nuova costruzione).
+function toggleNuovaCostruzione() {
+  dettagliData.nuova_costruzione = !dettagliData.nuova_costruzione;
+  _syncCheckboxToggle('toggle-nuova-costruzione', 'chk-nuova-costruzione', dettagliData.nuova_costruzione);
+  applyNuovaCostruzioneUI();
+}
+
+function applyNuovaCostruzioneUI() {
+  const on = !!dettagliData.nuova_costruzione;
+  const grp = document.getElementById('anni-group');
+  const ac = document.getElementById('anno-costruzione');
+  const ar = document.getElementById('anno-ristrutturazione');
+  if (ac) { ac.disabled = on; if (on) ac.value = ''; }
+  if (ar) { ar.disabled = on; if (on) ar.value = ''; }
+  if (grp) grp.style.opacity = on ? '0.45' : '';
+  if (on) { dettagliData.anno_costruzione = ''; dettagliData.anno_ristrutturazione = ''; }
+}
+
 function togglePertinenza(el, key) {
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
   const newVal = !dettagliData.pertinenze[key];
@@ -3723,6 +3765,14 @@ function collectDettagli() {
   dettagliData.piani_fuori_terra = parseInt(document.getElementById('piani-fuori-terra').value) || 1;
   dettagliData.piani_entroterra = parseInt(document.getElementById('piani-entroterra').value) || 0;
   dettagliData.num_servizi_igienici = document.getElementById('num-servizi-igienici').value;
+  dettagliData.nuova_costruzione = document.getElementById('chk-nuova-costruzione').checked;
+  if (dettagliData.nuova_costruzione) {
+    dettagliData.anno_costruzione = '';
+    dettagliData.anno_ristrutturazione = '';
+  } else {
+    dettagliData.anno_costruzione = document.getElementById('anno-costruzione').value;
+    dettagliData.anno_ristrutturazione = document.getElementById('anno-ristrutturazione').value;
+  }
   dettagliData.lavanderia = document.getElementById('chk-lavanderia').checked;
   dettagliData.cabina_armadio = document.getElementById('chk-cabina-armadio').checked;
   dettagliData.studio = document.getElementById('chk-studio').checked;
@@ -3839,6 +3889,12 @@ function buildSummary() {
   html += '<div class="summary-row"><span class="sr-label">Ristrutturazioni</span><span class="sr-value">' + (dettagliData.ristrutturazione || '-') + '</span></div>';
   if (dettagliData.ristrutturazione === 'Si' && dettagliData.ristrutturazione_desc) {
     html += '<div class="summary-row"><span class="sr-label">Descrizione</span><span class="sr-value" style="max-width:200px;text-align:right;">' + dettagliData.ristrutturazione_desc + '</span></div>';
+  }
+  if (dettagliData.nuova_costruzione) {
+    html += '<div class="summary-row"><span class="sr-label">Epoca</span><span class="sr-value" style="color:var(--green);">Nuova costruzione</span></div>';
+  } else {
+    if (dettagliData.anno_costruzione) html += '<div class="summary-row"><span class="sr-label">Anno costruzione</span><span class="sr-value">' + dettagliData.anno_costruzione + '</span></div>';
+    if (dettagliData.anno_ristrutturazione) html += '<div class="summary-row"><span class="sr-label">Anno ristrutturazione</span><span class="sr-value">' + dettagliData.anno_ristrutturazione + '</span></div>';
   }
   html += '<div class="summary-row"><span class="sr-label">Piani fuori terra</span><span class="sr-value">' + dettagliData.piani_fuori_terra + '</span></div>';
   html += '<div class="summary-row"><span class="sr-label">Piani entroterra</span><span class="sr-value">' + dettagliData.piani_entroterra + '</span></div>';
@@ -4005,7 +4061,10 @@ function buildJSON() {
       tipologia: dettagliData.tipologia || null,
       ascensore: dettagliData.ascensore || null,
       ristrutturazioni_recenti: dettagliData.ristrutturazione || null,
-      ristrutturazioni_descrizione: dettagliData.ristrutturazione === 'Si' ? dettagliData.ristrutturazione_desc || null : null
+      ristrutturazioni_descrizione: dettagliData.ristrutturazione === 'Si' ? dettagliData.ristrutturazione_desc || null : null,
+      nuova_costruzione: !!dettagliData.nuova_costruzione,
+      anno_costruzione: dettagliData.nuova_costruzione ? null : (dettagliData.anno_costruzione ? parseInt(dettagliData.anno_costruzione) : null),
+      anno_ristrutturazione: dettagliData.nuova_costruzione ? null : (dettagliData.anno_ristrutturazione ? parseInt(dettagliData.anno_ristrutturazione) : null)
     },
     piani: {
       fuori_terra: dettagliData.piani_fuori_terra,
