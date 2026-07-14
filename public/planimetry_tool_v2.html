@@ -880,6 +880,10 @@
                   <span class="dot" style="background:#10b981;"></span> Cantina
                   <span class="area-badge" id="badge-cantina" style="display:none;"></span>
                 </button>
+                <button class="tool-btn" id="btn-cantina_indipendente" onclick="selectTool('cantina_indipendente')">
+                  <span class="dot" style="background:#84cc16;"></span> Cantina ab. indipendente
+                  <span class="area-badge" id="badge-cantina_indipendente" style="display:none;"></span>
+                </button>
                 <button class="tool-btn" id="btn-box_auto" onclick="selectTool('box_auto')">
                   <span class="dot" style="background:#f97316;"></span> Box auto
                   <span class="area-badge" id="badge-box_auto" style="display:none;"></span>
@@ -1198,11 +1202,52 @@
             </div>
           </div>
 
+          <!-- Composizione Cantina di abitazione indipendente (mostrata solo se perimetrata) -->
+          <div class="composizione-block" id="cantina-ind-block" style="display:none;">
+            <div class="detail-section-title">Composizione Cantina di abitazione indipendente</div>
+            <p class="subtitle" style="margin:-4px 0 12px;">La cantina di abitazione indipendente risulta perimetrata. Indica com'&egrave; suddivisa internamente per generare la descrizione.</p>
+
+            <div class="detail-group">
+              <label for="cantina-ind-n-locali">Da quanti locali &egrave; composta la cantina?</label>
+              <select id="cantina-ind-n-locali" onchange="renderCantinaIndLocali()">
+                <option value="">-- Seleziona --</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+              </select>
+              <div id="cantina-ind-locali-list" style="margin-top:12px;"></div>
+            </div>
+
+            <div class="detail-group">
+              <div class="group-label">Servizio igienico</div>
+              <div class="checkbox-toggle" id="toggle-cantina-ind-wc" onclick="toggleCantinaIndWc()">
+                <input type="checkbox" id="chk-cantina-ind-wc"> Servizio igienico presente
+              </div>
+              <div id="cantina-ind-wc-count" style="display:none; margin-top:12px;">
+                <label for="cantina-ind-n-wc">Quanti servizi igienici?</label>
+                <select id="cantina-ind-n-wc" onchange="setCantinaIndWcCount()">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <!-- Pertinenze -->
           <div class="pertinenze-block">
             <div class="detail-section-title">Pertinenze</div>
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'cantina')">
               <input type="checkbox" id="chk-cantina"> Cantina
+            </div>
+            <div class="checkbox-toggle" onclick="togglePertinenza(this, 'cantina_indipendente')">
+              <input type="checkbox" id="chk-cantina-indipendente"> Cantina di abitazione indipendente
             </div>
             <div class="checkbox-toggle" onclick="togglePertinenza(this, 'solaio')">
               <input type="checkbox" id="chk-solaio"> Solaio
@@ -1360,6 +1405,7 @@ const CATEGORIES = {
   balconi:      { label: 'Balconi',      fill: 'rgba(59,130,246,0.25)',  stroke: '#3b82f6' },
   terrazzo:     { label: 'Terrazzo',     fill: 'rgba(99,102,241,0.25)',  stroke: '#6366f1' },
   cantina:      { label: 'Cantina',      fill: 'rgba(16,185,129,0.25)',  stroke: '#10b981' },
+  cantina_indipendente: { label: 'Cantina ab. indipendente', fill: 'rgba(132,204,22,0.25)', stroke: '#84cc16' },
   box_auto:     { label: 'Box auto',     fill: 'rgba(249,115,22,0.25)', stroke: '#f97316' },
   posto_auto:   { label: 'Posto auto',   fill: 'rgba(100,116,139,0.25)', stroke: '#64748b' },
   posto_moto:   { label: 'Posto moto',   fill: 'rgba(120,113,108,0.25)', stroke: '#78716c' },
@@ -1372,7 +1418,7 @@ const CATEGORIES = {
 };
 
 // Categorie raccolte nel sottomenù "Pertinenze accessorie" della barra strumenti.
-const TOOL_GROUP_PERTINENZE = ['cantina', 'box_auto', 'posto_auto', 'posto_moto'];
+const TOOL_GROUP_PERTINENZE = ['cantina', 'cantina_indipendente', 'box_auto', 'posto_auto', 'posto_moto'];
 
 const COMPASS_DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 const CONFINI_LATI = ['Nord', 'Est', 'Sud', 'Ovest'];
@@ -1461,7 +1507,7 @@ let dettagliData = {
   tipologia: '', ascensore: '', ristrutturazione: '', ristrutturazione_desc: '',
   piani_fuori_terra: 1, piani_entroterra: 0,
   num_camere: '', soggiorno: '', cucina_abitabile: false, angolo_cottura: false,
-  angolo_cottura_extra: false, ingresso: '', mansarda: null,
+  angolo_cottura_extra: false, ingresso: '', mansarda: null, cantina_indipendente: null,
   lavanderia: false, cabina_armadio: false, studio: false,
   anno_costruzione: '', anno_ristrutturazione: '', nuova_costruzione: false
 };
@@ -3315,7 +3361,7 @@ function applyFormDataToUI() {
   // Make sure shape-backed flags are derived before we paint the form.
   if (typeof syncPertinenzeFromShapes === 'function') syncPertinenzeFromShapes();
   const pert = (dettagliData.pertinenze || {});
-  const pertKeys = ['cantina','solaio','ripostiglio','box_auto','posto_auto','posto_moto','giardino','sottotetto','mansarda','portico'];
+  const pertKeys = ['cantina','cantina_indipendente','solaio','ripostiglio','box_auto','posto_auto','posto_moto','giardino','sottotetto','mansarda','portico'];
   pertKeys.forEach(k => {
     const inputId = 'chk-' + k.replace(/_/g, '-');
     const input = document.getElementById(inputId);
@@ -3343,6 +3389,9 @@ function applyFormDataToUI() {
 
   // Sezione mansarda (visibile solo se una mansarda è perimetrata)
   initMansardaSection();
+
+  // Sezione cantina di abitazione indipendente (visibile solo se perimetrata)
+  initCantinaIndSection();
 }
 
 function initStep5MultiLevel() {
@@ -3616,6 +3665,8 @@ function togglePertinenza(el, key) {
   if (chk) chk.checked = newVal;
   // Show/hide the mansarda composition section as the checkbox changes.
   if (key === 'mansarda' && typeof initMansardaSection === 'function') initMansardaSection();
+  // Idem per la composizione della cantina di abitazione indipendente.
+  if (key === 'cantina_indipendente' && typeof initCantinaIndSection === 'function') initCantinaIndSection();
 }
 
 // ==========================================
@@ -3757,6 +3808,181 @@ function buildMansardaJSON() {
 }
 
 // ==========================================
+// CANTINA DI ABITAZIONE INDIPENDENTE (composizione locali)
+// — mostrata quando una cantina di abitazione indipendente è perimetrata
+// ==========================================
+
+// Tipologie di locale ammesse per la cantina di abitazione indipendente.
+const CANTINA_IND_TIPI_LOCALE = [
+  { value: 'lavanderia',     label: 'Lavanderia',     singolare: 'lavanderia',      plurale: 'lavanderie' },
+  { value: 'ripostiglio',    label: 'Ripostiglio',    singolare: 'ripostiglio',     plurale: 'ripostigli' },
+  { value: 'cantina',        label: 'Cantina',        singolare: 'cantina',         plurale: 'cantine' },
+  { value: 'taverna',        label: 'Taverna',        singolare: 'taverna',         plurale: 'taverne' },
+  { value: 'locale_tecnico', label: 'Locale tecnico', singolare: 'locale tecnico',  plurale: 'locali tecnici' }
+];
+
+function cantinaIndTipoDef(tipo) {
+  return CANTINA_IND_TIPI_LOCALE.find(t => t.value === tipo) || CANTINA_IND_TIPI_LOCALE[2];
+}
+
+// True se esiste almeno un poligono di tipo "cantina_indipendente" (su
+// qualsiasi pagina) oppure se la relativa pertinenza è spuntata manualmente.
+function hasCantinaIndPerimetrata() {
+  const present = new Set();
+  (shapes || []).forEach(s => { if (s && s.type) present.add(s.type); });
+  Object.keys(pageStates || {}).forEach(k => {
+    const ps = pageStates[k];
+    if (ps && Array.isArray(ps.shapes)) ps.shapes.forEach(s => { if (s && s.type) present.add(s.type); });
+  });
+  if (present.has('cantina_indipendente')) return true;
+  return !!(dettagliData.pertinenze && dettagliData.pertinenze.cantina_indipendente);
+}
+
+// Elenco dei piani a cui appartengono i poligoni "cantina_indipendente".
+function getCantinaIndPiani() {
+  const set = new Set();
+  const scan = (arr) => (arr || []).forEach(s => { if (s && s.type === 'cantina_indipendente' && s.piano) set.add(s.piano); });
+  scan(shapes);
+  Object.keys(pageStates || {}).forEach(k => { const ps = pageStates[k]; if (ps) scan(ps.shapes); });
+  return Array.from(set);
+}
+
+// Assicura che dettagliData.cantina_indipendente esista con la forma attesa.
+function ensureCantinaIndData() {
+  if (!dettagliData.cantina_indipendente || typeof dettagliData.cantina_indipendente !== 'object') {
+    dettagliData.cantina_indipendente = { n_locali: 0, locali: [], servizio_igienico: false, n_servizi_igienici: 1 };
+  }
+  const c = dettagliData.cantina_indipendente;
+  if (!Array.isArray(c.locali)) c.locali = [];
+  if (!c.n_servizi_igienici) c.n_servizi_igienici = 1;
+  return c;
+}
+
+// Genera le righe "Locale N: tipologia" in base al numero di locali
+// selezionato, preservando le scelte già effettuate.
+function renderCantinaIndLocali() {
+  const sel = document.getElementById('cantina-ind-n-locali');
+  const box = document.getElementById('cantina-ind-locali-list');
+  if (!sel || !box) return;
+  const n = parseInt(sel.value) || 0;
+  const c = ensureCantinaIndData();
+  c.n_locali = n;
+  const cur = c.locali;
+  const next = [];
+  for (let i = 0; i < n; i++) {
+    next.push({ tipo: (cur[i] && cur[i].tipo) ? cur[i].tipo : 'cantina' });
+  }
+  c.locali = next;
+  if (n === 0) { box.innerHTML = ''; return; }
+  let html = '<div style="background:var(--bg-input);border-radius:10px;padding:14px 16px;">';
+  for (let i = 0; i < n; i++) {
+    const tipo = next[i].tipo;
+    html += '<div style="margin-bottom:' + (i === n - 1 ? '0' : '12px') + ';">';
+    html += '<div class="group-label" style="margin-bottom:6px;">Locale ' + (i + 1) + '</div>';
+    html += '<select onchange="setCantinaIndLocaleTipo(' + i + ', this.value)">';
+    CANTINA_IND_TIPI_LOCALE.forEach(t => {
+      html += '<option value="' + t.value + '"' + (tipo === t.value ? ' selected' : '') + '>' + t.label + '</option>';
+    });
+    html += '</select></div>';
+  }
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+function setCantinaIndLocaleTipo(idx, tipo) {
+  const c = ensureCantinaIndData();
+  if (!c.locali[idx]) c.locali[idx] = { tipo: tipo };
+  c.locali[idx].tipo = tipo;
+}
+
+function toggleCantinaIndWc() {
+  const c = ensureCantinaIndData();
+  c.servizio_igienico = !c.servizio_igienico;
+  _syncCheckboxToggle('toggle-cantina-ind-wc', 'chk-cantina-ind-wc', c.servizio_igienico);
+  updateCantinaIndWcCount();
+}
+
+function setCantinaIndWcCount() {
+  const c = ensureCantinaIndData();
+  const sel = document.getElementById('cantina-ind-n-wc');
+  if (sel) c.n_servizi_igienici = parseInt(sel.value) || 1;
+}
+
+// Mostra/nasconde il selettore "quanti servizi igienici" in base alla spunta.
+function updateCantinaIndWcCount() {
+  const c = ensureCantinaIndData();
+  const wrap = document.getElementById('cantina-ind-wc-count');
+  const sel = document.getElementById('cantina-ind-n-wc');
+  if (wrap) wrap.style.display = c.servizio_igienico ? '' : 'none';
+  if (sel) sel.value = String(c.n_servizi_igienici || 1);
+}
+
+// Mostra/nasconde e ripopola la sezione. Chiamata all'ingresso dello step 5.
+function initCantinaIndSection() {
+  const block = document.getElementById('cantina-ind-block');
+  if (!block) return;
+  const show = hasCantinaIndPerimetrata();
+  block.style.display = show ? '' : 'none';
+  if (!show) return;
+  const c = ensureCantinaIndData();
+  const sel = document.getElementById('cantina-ind-n-locali');
+  if (sel) sel.value = c.n_locali ? String(c.n_locali) : '';
+  renderCantinaIndLocali();
+  _syncCheckboxToggle('toggle-cantina-ind-wc', 'chk-cantina-ind-wc', !!c.servizio_igienico);
+  updateCantinaIndWcCount();
+}
+
+// Conteggio locali per tipologia, es. { cantina: 2, lavanderia: 1 }.
+function cantinaIndLocaliPerTipo(locali) {
+  const counts = {};
+  (locali || []).forEach(l => {
+    if (!l || !l.tipo) return;
+    counts[l.tipo] = (counts[l.tipo] || 0) + 1;
+  });
+  return counts;
+}
+
+// Costruisce il frammento di descrizione, es.:
+// "cantina di abitazione indipendente composta da 2 cantine, lavanderia,
+//  locale tecnico e un servizio igienico al piano interrato".
+function buildCantinaIndDescription(counts, wc, nWc, piani) {
+  const segs = [];
+  CANTINA_IND_TIPI_LOCALE.forEach(t => {
+    const n = counts[t.value] || 0;
+    if (n === 0) return;
+    segs.push(n === 1 ? t.singolare : (n + ' ' + t.plurale));
+  });
+  if (wc) segs.push(nWc === 1 ? 'un servizio igienico' : (nWc + ' servizi igienici'));
+  const pianoStr = (piani && piani.length)
+    ? (' al ' + piani.join(' e ').toLowerCase())
+    : '';
+  const corpo = segs.length ? (' composta da ' + segs.join(', ')) : '';
+  return 'cantina di abitazione indipendente' + corpo + pianoStr;
+}
+
+// Oggetto cantina indipendente pronto per il JSON (null se non perimetrata).
+function buildCantinaIndJSON() {
+  if (!hasCantinaIndPerimetrata()) return null;
+  const c = ensureCantinaIndData();
+  const n = c.n_locali || 0;
+  const locali = (c.locali || []).slice(0, n);
+  const counts = cantinaIndLocaliPerTipo(locali);
+  const wc = !!c.servizio_igienico;
+  const nWc = wc ? (c.n_servizi_igienici || 1) : 0;
+  const piani = getCantinaIndPiani();
+  return {
+    perimetrata: true,
+    n_locali: n,
+    locali: locali.map((l, i) => ({ n: i + 1, tipo: l.tipo, tipo_label: cantinaIndTipoDef(l.tipo).label })),
+    locali_per_tipo: counts,
+    servizio_igienico_presente: wc,
+    n_servizi_igienici: nWc,
+    piani: piani,
+    descrizione: buildCantinaIndDescription(counts, wc, nWc, piani)
+  };
+}
+
+// ==========================================
 // STEP 6: SUMMARY & EXPORT (COMBINED ALL PAGES)
 // ==========================================
 function collectDettagli() {
@@ -3807,6 +4033,7 @@ function collectDettagli() {
   // Collect pertinenze
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
   dettagliData.pertinenze.cantina = document.getElementById('chk-cantina').checked;
+  dettagliData.pertinenze.cantina_indipendente = document.getElementById('chk-cantina-indipendente').checked;
   dettagliData.pertinenze.solaio = document.getElementById('chk-solaio').checked;
   dettagliData.pertinenze.ripostiglio = document.getElementById('chk-ripostiglio').checked;
   dettagliData.pertinenze.box_auto = document.getElementById('chk-box-auto').checked;
@@ -3831,11 +4058,18 @@ function collectDettagli() {
   } else {
     dettagliData.mansarda = null;
   }
+
+  // Composizione cantina di abitazione indipendente: stesso criterio.
+  if (hasCantinaIndPerimetrata()) {
+    ensureCantinaIndData();
+  } else {
+    dettagliData.cantina_indipendente = null;
+  }
 }
 
 // Pertinenze keys that have a corresponding shape category. Drawing a shape
 // of one of these types must imply pertinenze[key] = true.
-const SHAPE_BACKED_PERTINENZE = ['cantina','box_auto','posto_auto','posto_moto','giardino','sottotetto','mansarda','ripostiglio','portico','solaio'];
+const SHAPE_BACKED_PERTINENZE = ['cantina','cantina_indipendente','box_auto','posto_auto','posto_moto','giardino','sottotetto','mansarda','ripostiglio','portico','solaio'];
 
 function syncPertinenzeFromShapes() {
   if (!dettagliData.pertinenze) dettagliData.pertinenze = {};
@@ -3937,9 +4171,23 @@ function buildSummary() {
     html += '</div>';
   }
 
+  // Cantina di abitazione indipendente card (solo se perimetrata)
+  const cantInd = buildCantinaIndJSON();
+  if (cantInd) {
+    html += '<div class="summary-card"><h4>Cantina di abitazione indipendente</h4>';
+    html += '<div class="summary-row"><span class="sr-label">N. locali</span><span class="sr-value">' + (cantInd.n_locali || '-') + '</span></div>';
+    CANTINA_IND_TIPI_LOCALE.forEach(t => {
+      const n = cantInd.locali_per_tipo[t.value] || 0;
+      if (n > 0) html += '<div class="summary-row" style="padding-left:16px;"><span class="sr-label" style="font-size:12px;color:var(--text-dim);">' + t.label + '</span><span class="sr-value" style="font-size:12px;">' + n + '</span></div>';
+    });
+    html += '<div class="summary-row"><span class="sr-label">Servizio igienico</span><span class="sr-value" style="color:' + (cantInd.servizio_igienico_presente ? 'var(--green)' : 'var(--text-dim)') + ';">' + (cantInd.servizio_igienico_presente ? ('Sì (' + cantInd.n_servizi_igienici + ')') : 'No') + '</span></div>';
+    html += '<div class="summary-row" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;"><span class="sr-value" style="font-style:italic;color:var(--text-dim);max-width:100%;text-align:left;line-height:1.5;">' + cantInd.descrizione + '</span></div>';
+    html += '</div>';
+  }
+
   // Pertinenze card
   const pert = dettagliData.pertinenze || {};
-  const pertLabels = { cantina: 'Cantina', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', posto_auto: 'Posto auto', posto_moto: 'Posto moto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico' };
+  const pertLabels = { cantina: 'Cantina', cantina_indipendente: 'Cantina ab. indipendente', solaio: 'Solaio', ripostiglio: 'Ripostiglio', box_auto: 'Box auto', posto_auto: 'Posto auto', posto_moto: 'Posto moto', giardino: 'Giardino', sottotetto: 'Sottotetto', mansarda: 'Mansarda', portico: 'Portico' };
   html += '<div class="summary-card"><h4>Pertinenze</h4>';
   Object.keys(pertLabels).forEach(k => {
     html += '<div class="summary-row"><span class="sr-label">' + pertLabels[k] + '</span><span class="sr-value" style="color:' + (pert[k] ? 'var(--green)' : 'var(--text-dim)') + ';">' + (pert[k] ? 'S\u00EC' : 'No') + '</span></div>';
@@ -4087,6 +4335,8 @@ function buildJSON() {
     },
     pertinenze: {
       cantina: !!(dettagliData.pertinenze && dettagliData.pertinenze.cantina),
+      cantina_indipendente: !!(dettagliData.pertinenze && dettagliData.pertinenze.cantina_indipendente),
+      composizione_cantina_indipendente: buildCantinaIndJSON(),
       solaio: !!(dettagliData.pertinenze && dettagliData.pertinenze.solaio),
       ripostiglio: !!(dettagliData.pertinenze && dettagliData.pertinenze.ripostiglio),
       box_auto: !!(dettagliData.pertinenze && dettagliData.pertinenze.box_auto),
