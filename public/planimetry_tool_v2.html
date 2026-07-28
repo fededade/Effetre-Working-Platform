@@ -380,6 +380,83 @@
   .preview-pane .no-preview {
     color: var(--text-dim); font-size: 14px; text-align: center; font-style: italic;
   }
+
+  /* ===== INTERACTIVE PLANIMETRY VIEWER (Step 4: Confini) ===== */
+  /* The confini step needs a planimetry the user can zoom into, and - on
+     multi-page documents - a way to pick which page to look at while ticking
+     the boundaries. `.pv-host` turns the plain preview pane into that viewer. */
+  .preview-pane.pv-host { padding: 0; display: block; overflow: hidden; }
+  .preview-pane.pv-host .preview-label { z-index: 30; }
+  .preview-pane.pv-host .no-preview {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .pv-viewport {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    overflow: auto; cursor: grab; touch-action: none; overscroll-behavior: contain;
+  }
+  .pv-viewport.grabbing { cursor: grabbing; }
+  .pv-wrapper { position: relative; }
+  .pv-img {
+    position: absolute; display: block; background: #222;
+    max-width: none; max-height: none; object-fit: fill;
+    border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    -webkit-user-select: none; user-select: none; -webkit-user-drag: none;
+  }
+  .pv-loading {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 31;
+    background: rgba(22,33,62,0.95); border: 1px solid var(--border); border-radius: 20px;
+    padding: 7px 18px; font-size: 12px; font-weight: 700; color: var(--gold);
+  }
+  /* Page picker - only shown when the document has more than one page */
+  .pv-pagebar {
+    position: absolute; top: 14px; right: 14px; z-index: 30;
+    display: flex; align-items: center; gap: 6px; max-width: calc(100% - 28px);
+    background: rgba(22,33,62,0.92); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: 12px; padding: 6px 8px;
+  }
+  .pv-pagebar button {
+    width: 28px; height: 28px; flex-shrink: 0; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--text);
+    cursor: pointer; font-size: 11px; display: flex; align-items: center;
+    justify-content: center; transition: all 0.2s;
+  }
+  .pv-pagebar button:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .pv-pagebar button:disabled { opacity: 0.3; cursor: not-allowed; }
+  .pv-pagebar select {
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: inherit; font-size: 12px; padding: 6px 8px;
+    max-width: 220px; outline: none; cursor: pointer;
+  }
+  .pv-pagebar select:focus { border-color: var(--gold); }
+  .pv-pagebar .pv-count {
+    font-size: 11px; font-weight: 700; color: var(--text-dim); white-space: nowrap; padding-right: 2px;
+  }
+  /* Zoom toolbar - mirrors the Step 2 floating toolbar */
+  .pv-toolbar {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 30;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+    /* left:50% would otherwise shrink-to-fit into half the pane and wrap early */
+    width: max-content; max-width: calc(100% - 24px);
+    background: rgba(22,33,62,0.92); backdrop-filter: blur(12px);
+    border: 1px solid var(--border); border-radius: 22px; padding: 6px 12px;
+  }
+  .pv-toolbar button {
+    width: 34px; height: 34px; border-radius: 50%; border: none; background: transparent;
+    color: var(--text-dim); cursor: pointer; font-size: 16px; font-family: inherit;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s;
+  }
+  .pv-toolbar button:hover { color: var(--gold); background: rgba(212,175,55,0.1); }
+  .pv-toolbar .sep { width: 1px; height: 22px; background: var(--border); }
+  .pv-toolbar .pv-zoom-label {
+    font-size: 13px; font-family: monospace; font-weight: 700; color: var(--text);
+    width: 50px; text-align: center;
+  }
+  .pv-toolbar .pv-btn-wide {
+    width: auto; padding: 0 12px; border-radius: 17px; font-size: 12px;
+    font-weight: 700; letter-spacing: 0.5px;
+  }
+
   .form-side {
     flex: 1; display: flex; align-items: center; justify-content: center;
     padding: 40px; overflow-y: auto;
@@ -1013,10 +1090,35 @@
     <!-- STEP 4: Confini -->
     <div class="step-panel" id="step-4">
       <div class="split-panel">
-        <div class="preview-pane">
+        <div class="preview-pane pv-host">
           <span class="preview-label">Planimetria</span>
-          <img id="preview-img-step4" src="" alt="Anteprima planimetria" style="display:none;">
+
+          <!-- Zoomable / pannable planimetry -->
+          <div class="pv-viewport" id="pv-viewport">
+            <div class="pv-wrapper" id="pv-wrapper">
+              <img class="pv-img" id="preview-img-step4" src="" alt="Anteprima planimetria" draggable="false" style="display:none;">
+            </div>
+          </div>
           <span class="no-preview" id="no-preview-4">Nessuna planimetria caricata</span>
+          <div class="pv-loading" id="pv-loading" style="display:none;">Caricamento pagina&hellip;</div>
+
+          <!-- Page picker (multi-page documents only) -->
+          <div class="pv-pagebar" id="pv-pagebar" style="display:none;">
+            <button id="pv-prev" onclick="pvChangePage(-1)" title="Pagina precedente">&#9664;</button>
+            <select id="pv-page-select" onchange="pvGoToPage(parseInt(this.value, 10))" title="Scegli la pagina su cui lavorare"></select>
+            <button id="pv-next" onclick="pvChangePage(1)" title="Pagina successiva">&#9654;</button>
+            <span class="pv-count" id="pv-count"></span>
+          </div>
+
+          <!-- Zoom toolbar -->
+          <div class="pv-toolbar">
+            <button onclick="pvZoom(1/1.25)" title="Zoom -">&#128270;-</button>
+            <span class="pv-zoom-label" id="pv-zoom-label">100%</span>
+            <button onclick="pvZoom(1.25)" title="Zoom +">&#128270;+</button>
+            <span class="sep"></span>
+            <button onclick="pvFit()" title="Adatta alla finestra">&#11036;</button>
+            <button class="pv-btn-wide" onclick="pvSetZoom(1)" title="Dimensione reale">1:1</button>
+          </div>
         </div>
         <div class="form-side">
           <div class="form-card" style="max-width:900px;">
@@ -1738,6 +1840,10 @@ async function applySessionSnapshot(snap) {
   allPageSources = [];
   sourceFiles = [];
   sourceFileIdCounter = 0;
+  pvPage = 0;
+  pvLoadedPage = -1;
+  pvUserPicked = false;
+  pvCache.clear();
   selectedNord = snap.selectedNord || '';
   confiniData = snap.confiniData ? JSON.parse(JSON.stringify(snap.confiniData)) : {};
   dettagliData = snap.dettagliData ? JSON.parse(JSON.stringify(snap.dettagliData)) : dettagliData;
@@ -2095,9 +2201,11 @@ function goToStep(n) {
     n = next;
   }
 
-  // Save current page state when leaving step 2
+  // Save current page state when leaving step 2. Step 2 is the only place the
+  // drawings can change, so that is also when the Step 4 renders go stale.
   if (currentStep === 2) {
     savePageState();
+    pvCache.clear();
   }
   // Capture the Step 5 form values into dettagliData on every leave so a
   // round-trip (5 -> 4 -> 5) doesn't lose what the user typed.
@@ -2105,8 +2213,9 @@ function goToStep(n) {
     try { collectDettagli(); } catch (_) {}
   }
 
-  // Capture preview snapshot from canvas before leaving step 2
-  if ((n === 3 || n === 4) && canvas.width > 0 && canvas.height > 0) {
+  // Capture preview snapshot from canvas before leaving step 2. Step 4 does not
+  // need it: its viewer composites the page it is asked for (see pvEnter()).
+  if (n === 3 && canvas.width > 0 && canvas.height > 0) {
     updatePreviewImages();
   }
 
@@ -2134,6 +2243,7 @@ function goToStep(n) {
     setTimeout(fitToScreen, 100);
     setTimeout(fitToScreen, 400);
   }
+  if (n === 4) pvEnter();
   if (n === 5) applyFormDataToUI();
   if (n === 6) buildSummary();
 }
@@ -2147,7 +2257,7 @@ function toggleMobileSidebar() {
 function updatePreviewImages() {
   try {
     const dataUrl = canvas.toDataURL('image/png');
-    [3, 4].forEach(step => {
+    [3].forEach(step => {
       const img = document.getElementById('preview-img-step' + step);
       const noPreview = document.getElementById('no-preview-' + step);
       if (img && dataUrl) {
@@ -2324,6 +2434,101 @@ async function renderPageByIndex(pageIndex) {
   }
 }
 
+// Render a page's background plus everything drawn on it (free-hand
+// annotations, polygons with their area labels, measurements) onto a fresh
+// offscreen canvas, without touching the live canvas. Shared by the Step 4
+// planimetry viewer and by the PDF export, which need the same composite for
+// any page - not just the one currently open in Step 2.
+// Returns null for missing / unknown page sources.
+async function renderPageComposite(pageIndex) {
+  const src = allPageSources[pageIndex];
+  if (!src) return null;
+  const ps = pageStates[pageIndex];
+
+  const off = document.createElement('canvas');
+  const offCtx = off.getContext('2d');
+  let cw, ch;
+
+  if (src.type === 'pdf' && src.pdfDoc) {
+    const page = await src.pdfDoc.getPage(src.pdfPageNum);
+    const viewport = page.getViewport({ scale: 2.0 });
+    cw = viewport.width;
+    ch = viewport.height;
+    off.width = cw;
+    off.height = ch;
+    await page.render({ canvasContext: offCtx, viewport }).promise;
+
+  } else if (src.type === 'image' && src.imageUrl) {
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error('Impossibile caricare immagine: ' + src.fileName));
+      im.src = src.imageUrl;
+    });
+    cw = img.naturalWidth;
+    ch = img.naturalHeight;
+    off.width = cw;
+    off.height = ch;
+    offCtx.drawImage(img, 0, 0, cw, ch);
+
+  } else {
+    return null;
+  }
+
+  // Free-hand annotations (pen + highlighter) below the polygons
+  if (ps && ps.annotations && ps.annotations.length > 0) {
+    ps.annotations.forEach(function(s) { drawStroke(offCtx, s); });
+  }
+
+  // Polygons on top
+  if (ps && ps.shapes && ps.shapes.length > 0) {
+    ps.shapes.forEach(function(shape) {
+      const cat = CATEGORIES[shape.type];
+      if (!cat || !shape.points || shape.points.length < 3) return;
+      offCtx.beginPath();
+      offCtx.moveTo(shape.points[0].x, shape.points[0].y);
+      for (let pi = 1; pi < shape.points.length; pi++) {
+        offCtx.lineTo(shape.points[pi].x, shape.points[pi].y);
+      }
+      offCtx.closePath();
+      offCtx.fillStyle = cat.fill;
+      offCtx.fill();
+      offCtx.strokeStyle = cat.stroke;
+      offCtx.lineWidth = 3;
+      offCtx.stroke();
+      if (ps.scalePPM) {
+        const area = calcPolygonAreaWithScale(shape.points, ps.scalePPM);
+        const cx = shape.points.reduce(function(s, p) { return s + p.x; }, 0) / shape.points.length;
+        const cy = shape.points.reduce(function(s, p) { return s + p.y; }, 0) / shape.points.length;
+        const fontSize = Math.max(18, Math.min(36, cw / 40));
+        offCtx.font = 'bold ' + fontSize + 'px sans-serif';
+        offCtx.textAlign = 'center';
+        offCtx.textBaseline = 'middle';
+        offCtx.strokeStyle = 'rgba(0,0,0,0.7)';
+        offCtx.lineWidth = 4;
+        offCtx.strokeText(area.toFixed(2) + ' m\u00B2', cx, cy);
+        offCtx.fillStyle = '#fff';
+        offCtx.fillText(area.toFixed(2) + ' m\u00B2', cx, cy);
+      }
+      offCtx.fillStyle = cat.stroke;
+      shape.points.forEach(function(p) {
+        offCtx.beginPath();
+        offCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        offCtx.fill();
+      });
+    });
+  }
+
+  // Measurements last, with the same anti-overlap label layout as the live canvas
+  if (ps && ps.measurements && ps.measurements.length > 0) {
+    computeMeasurementLayouts(ps.measurements, offCtx, cw).forEach(function(p) {
+      drawMeasurement(p, offCtx);
+    });
+  }
+
+  return off;
+}
+
 async function changePage(delta) {
   const newPage = currentPage + delta;
   if (newPage < 0 || newPage >= totalPages) return;
@@ -2331,8 +2536,10 @@ async function changePage(delta) {
   // Save current page state
   savePageState();
 
-  // Switch page
+  // Switch page. The Step 4 viewer follows along again until the user picks a
+  // page there by hand.
   currentPage = newPage;
+  pvUserPicked = false;
 
   // Load new page state
   loadPageState(currentPage);
@@ -3586,6 +3793,308 @@ function toggleConfine(lato, opt, checked) {
   }
 }
 
+// --- STEP 4: PLANIMETRY VIEWER (zoom / pan / page picker) ---
+// The confini step used to show a flat snapshot of whatever page happened to be
+// open in Step 2. It now renders any page of the loaded document on demand and
+// lets the user zoom, pan and switch page while ticking the boundaries.
+const PV_MIN_ZOOM = 0.1;
+const PV_MAX_ZOOM = 8;
+const PV_PAD = 48;          // breathing room around the planimetry, in px
+const PV_CACHE_MAX = 6;     // rendered pages kept in memory (they are megabytes each)
+
+let pvPage = 0;             // page shown in the viewer (independent of Step 2)
+let pvLoadedPage = -1;      // page the image on screen was rendered from
+let pvUserPicked = false;   // true once the user picks a page here by hand
+let pvZoomLevel = 1;
+let pvNaturalW = 0, pvNaturalH = 0;
+let pvCache = new Map();    // pageIndex -> data URL, dropped when Step 2 is left
+let pvRenderToken = 0;      // guards against out-of-order async renders
+
+// Called by goToStep() whenever Step 4 becomes visible.
+function pvEnter() {
+  if (totalPages === 0) { pvShowEmpty(); return; }
+  // Follow Step 2 unless the user has explicitly chosen a page in this viewer.
+  if (!pvUserPicked || pvPage < 0 || pvPage >= totalPages) {
+    pvPage = Math.max(0, Math.min(currentPage, totalPages - 1));
+  }
+  pvBuildPageBar();
+  // Coming back to the same page keeps the zoom / scroll the user had set.
+  pvLoadPage(pvPage, pvPage !== pvLoadedPage || !pvNaturalW);
+}
+
+function pvShowEmpty() {
+  const img = document.getElementById('preview-img-step4');
+  if (img) { img.style.display = 'none'; img.removeAttribute('src'); }
+  const empty = document.getElementById('no-preview-4');
+  if (empty) empty.style.display = '';
+  const bar = document.getElementById('pv-pagebar');
+  if (bar) bar.style.display = 'none';
+  pvSetLoading(false);
+  pvNaturalW = 0;
+  pvNaturalH = 0;
+  pvLoadedPage = -1;
+}
+
+function pvSetLoading(on) {
+  const el = document.getElementById('pv-loading');
+  if (el) el.style.display = on ? '' : 'none';
+}
+
+function pvBuildPageBar() {
+  const bar = document.getElementById('pv-pagebar');
+  const sel = document.getElementById('pv-page-select');
+  if (!bar || !sel) return;
+  if (totalPages <= 1) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  sel.innerHTML = '';
+  for (let i = 0; i < totalPages; i++) {
+    const src = allPageSources[i];
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = (i + 1) + '. ' + (src ? src.fileName : 'Pagina ' + (i + 1));
+    sel.appendChild(opt);
+  }
+  pvUpdatePageBar();
+}
+
+function pvUpdatePageBar() {
+  const sel = document.getElementById('pv-page-select');
+  if (sel) sel.value = String(pvPage);
+  const prev = document.getElementById('pv-prev');
+  const next = document.getElementById('pv-next');
+  const count = document.getElementById('pv-count');
+  if (prev) prev.disabled = pvPage <= 0;
+  if (next) next.disabled = pvPage >= totalPages - 1;
+  if (count) count.textContent = (pvPage + 1) + ' / ' + totalPages;
+}
+
+function pvChangePage(delta) { pvGoToPage(pvPage + delta); }
+
+function pvGoToPage(index) {
+  if (isNaN(index) || index < 0 || index >= totalPages || index === pvPage) return;
+  pvPage = index;
+  pvUserPicked = true;
+  pvUpdatePageBar();
+  pvLoadPage(pvPage, true);
+}
+
+// Render `index` into the viewer. `refit` re-fits the zoom to the pane (used
+// when the page changes); otherwise zoom and scroll are left alone.
+async function pvLoadPage(index, refit) {
+  const img = document.getElementById('preview-img-step4');
+  if (!img) return;
+  const token = ++pvRenderToken;
+
+  let dataUrl = pvCache.get(index);
+  pvSetLoading(!dataUrl);
+  if (!dataUrl) {
+    try {
+      savePageState();        // flush the live edits of the page open in Step 2
+      const composite = await renderPageComposite(index);
+      if (composite) dataUrl = composite.toDataURL('image/png');
+    } catch (e) {
+      // Keep whatever frame is on screen; the empty state below covers the rest.
+    }
+    if (token !== pvRenderToken) return;   // a newer request won the race
+    pvSetLoading(false);
+    if (dataUrl) {
+      pvCache.set(index, dataUrl);
+      // Evict the oldest render so paging through a long document stays bounded
+      while (pvCache.size > PV_CACHE_MAX) pvCache.delete(pvCache.keys().next().value);
+    }
+  }
+
+  if (!dataUrl) { pvShowEmpty(); return; }
+
+  // Re-assigning the same source would not necessarily fire `load` again.
+  if (img.getAttribute('src') !== dataUrl || !img.complete || !img.naturalWidth) {
+    await new Promise(resolve => {
+      img.onload = resolve;
+      img.onerror = resolve;
+      img.src = dataUrl;
+    });
+    if (token !== pvRenderToken) return;
+  }
+
+  const empty = document.getElementById('no-preview-4');
+  if (empty) empty.style.display = 'none';
+  pvNaturalW = img.naturalWidth || 1;
+  pvNaturalH = img.naturalHeight || 1;
+  pvLoadedPage = index;
+  img.style.display = '';
+  if (refit) pvFit(); else pvLayout();
+}
+
+// Size the image to the current zoom and keep it centred when it is smaller
+// than the pane - same wrapper/frame trick the Step 2 canvas uses.
+function pvLayout() {
+  const vp = document.getElementById('pv-viewport');
+  const wrap = document.getElementById('pv-wrapper');
+  const img = document.getElementById('preview-img-step4');
+  if (!vp || !wrap || !img || !pvNaturalW) return;
+
+  const w = pvNaturalW * pvZoomLevel;
+  const h = pvNaturalH * pvZoomLevel;
+  const wrapW = Math.max(w + PV_PAD, vp.clientWidth);
+  const wrapH = Math.max(h + PV_PAD, vp.clientHeight);
+  wrap.style.width = wrapW + 'px';
+  wrap.style.height = wrapH + 'px';
+  img.style.width = w + 'px';
+  img.style.height = h + 'px';
+  img.style.left = ((wrapW - w) / 2) + 'px';
+  img.style.top = ((wrapH - h) / 2) + 'px';
+
+  const label = document.getElementById('pv-zoom-label');
+  if (label) label.textContent = Math.round(pvZoomLevel * 100) + '%';
+}
+
+// Apply a zoom while keeping the planimetry point under (focusClientX,
+// focusClientY) stationary. Omit the focus to zoom around the pane centre.
+function pvSetZoom(newZoom, focusClientX, focusClientY) {
+  const vp = document.getElementById('pv-viewport');
+  const img = document.getElementById('preview-img-step4');
+  if (!vp || !img || !pvNaturalW) return;
+
+  newZoom = Math.max(PV_MIN_ZOOM, Math.min(PV_MAX_ZOOM, newZoom));
+  const vpRect = vp.getBoundingClientRect();
+  if (focusClientX == null) focusClientX = vpRect.left + vp.clientWidth / 2;
+  if (focusClientY == null) focusClientY = vpRect.top + vp.clientHeight / 2;
+
+  const imgRect = img.getBoundingClientRect();
+  const oldZoom = pvZoomLevel || 1;
+  const contentX = (focusClientX - imgRect.left) / oldZoom;
+  const contentY = (focusClientY - imgRect.top) / oldZoom;
+
+  pvZoomLevel = newZoom;
+  pvLayout();
+
+  const newRect = img.getBoundingClientRect();
+  vp.scrollLeft += (newRect.left + contentX * newZoom) - focusClientX;
+  vp.scrollTop += (newRect.top + contentY * newZoom) - focusClientY;
+}
+
+function pvZoom(factor) { pvSetZoom(pvZoomLevel * factor); }
+
+// Vertical room the floating page bar and zoom toolbar take up, so a fitted
+// planimetry sits between them instead of underneath them.
+function pvChromeInset() {
+  const bar = document.getElementById('pv-pagebar');
+  const toolbar = document.querySelector('#step-4 .pv-toolbar');
+  const top = (bar && bar.style.display !== 'none') ? bar.offsetHeight + 28 : PV_PAD / 2;
+  const bottom = toolbar ? toolbar.offsetHeight + 32 : PV_PAD / 2;
+  return top + bottom;
+}
+
+function pvFit() {
+  const vp = document.getElementById('pv-viewport');
+  if (!vp || !pvNaturalW) return;
+  if (vp.clientWidth <= 0 || vp.clientHeight <= 0) return;
+  const maxW = Math.max(50, vp.clientWidth - PV_PAD);
+  const maxH = Math.max(50, vp.clientHeight - pvChromeInset());
+  pvZoomLevel = Math.max(PV_MIN_ZOOM, Math.min(maxW / pvNaturalW, maxH / pvNaturalH, 1));
+  pvLayout();
+  vp.scrollLeft = Math.max(0, (vp.scrollWidth - vp.clientWidth) / 2);
+  vp.scrollTop = Math.max(0, (vp.scrollHeight - vp.clientHeight) / 2);
+}
+
+// Wheel zoom, drag-to-pan, pinch zoom and double-click fit/100%.
+(function installPlanViewerInteractions() {
+  const vp = document.getElementById('pv-viewport');
+  if (!vp) return;
+
+  vp.addEventListener('wheel', function(e) {
+    if (!pvNaturalW) return;
+    e.preventDefault();
+    // Multiplicative step so the feel is the same at every zoom level
+    const factor = e.deltaY > 0 ? (1 / 1.12) : 1.12;
+    pvSetZoom(pvZoomLevel * factor, e.clientX, e.clientY);
+  }, { passive: false });
+
+  const pointers = new Map();
+  let dragId = null, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+  let pinchDist = 0, pinchZoom = 1;
+
+  vp.addEventListener('pointerdown', function(e) {
+    if (!pvNaturalW) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 2) {
+      // Second finger down: stop panning and start a pinch
+      dragId = null;
+      vp.classList.remove('grabbing');
+      const p = Array.from(pointers.values());
+      pinchDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1;
+      pinchZoom = pvZoomLevel;
+      return;
+    }
+    if (pointers.size > 2) return;
+
+    dragId = e.pointerId;
+    startX = e.clientX; startY = e.clientY;
+    startLeft = vp.scrollLeft; startTop = vp.scrollTop;
+    vp.classList.add('grabbing');
+    try { vp.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+
+  vp.addEventListener('pointermove', function(e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 2) {
+      const p = Array.from(pointers.values());
+      const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) || 1;
+      pvSetZoom(pinchZoom * (d / pinchDist), (p[0].x + p[1].x) / 2, (p[0].y + p[1].y) / 2);
+      e.preventDefault();
+      return;
+    }
+    if (e.pointerId !== dragId) return;
+    vp.scrollLeft = startLeft - (e.clientX - startX);
+    vp.scrollTop = startTop - (e.clientY - startY);
+    e.preventDefault();
+  });
+
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (e.pointerId === dragId) {
+      dragId = null;
+      vp.classList.remove('grabbing');
+      try { vp.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (pointers.size < 2) pinchDist = 0;
+  }
+  vp.addEventListener('pointerup', endPointer);
+  vp.addEventListener('pointercancel', endPointer);
+  vp.addEventListener('dragstart', function(e) { e.preventDefault(); });
+
+  vp.addEventListener('dblclick', function(e) {
+    if (!pvNaturalW) return;
+    if (pvZoomLevel < 0.99) pvSetZoom(1, e.clientX, e.clientY);
+    else pvFit();
+  });
+})();
+
+// Re-layout when the pane changes size (window resize, dev-tools, first paint).
+(function installPlanViewerResizeObserver() {
+  const vp = document.getElementById('pv-viewport');
+  if (!vp || typeof ResizeObserver === 'undefined') return;
+  let lastW = 0, lastH = 0;
+  const ro = new ResizeObserver(() => {
+    const w = vp.clientWidth, h = vp.clientHeight;
+    // Leaving Step 4 collapses the pane to 0x0. Ignoring those observations
+    // keeps the remembered size so coming back does not re-fit (and throw away
+    // the zoom the user had set).
+    if (w === 0 || h === 0) return;
+    if (w === lastW && h === lastH) return;
+    const firstLayout = (lastW === 0 || lastH === 0);
+    lastW = w; lastH = h;
+    if (currentStep !== 4 || !pvNaturalW) return;
+    if (firstLayout) pvFit(); else pvLayout();
+  });
+  ro.observe(vp);
+})();
+
 // ==========================================
 // STEP 5: DETTAGLI
 // ==========================================
@@ -4402,89 +4911,11 @@ async function exportPlanimetryPDF() {
       const ps = pageStates[i];
       if (!src) continue;
 
-      // --- Step 1: get the background image onto an offscreen canvas ---
-      const offCanvas = document.createElement('canvas');
-      const offCtx = offCanvas.getContext('2d');
-      let cw, ch;
-
-      if (src.type === 'pdf' && src.pdfDoc) {
-        // Render PDF page to offscreen canvas
-        const page = await src.pdfDoc.getPage(src.pdfPageNum);
-        const scale = 2.0;
-        const viewport = page.getViewport({ scale });
-        offCanvas.width = viewport.width;
-        offCanvas.height = viewport.height;
-        await page.render({ canvasContext: offCtx, viewport }).promise;
-        cw = viewport.width;
-        ch = viewport.height;
-
-      } else if (src.type === 'image' && src.imageUrl) {
-        // Load image
-        const img = await new Promise((resolve, reject) => {
-          const im = new Image();
-          im.onload = () => resolve(im);
-          im.onerror = () => reject(new Error('Impossibile caricare immagine: ' + src.fileName));
-          im.src = src.imageUrl;
-        });
-        cw = img.naturalWidth;
-        ch = img.naturalHeight;
-        offCanvas.width = cw;
-        offCanvas.height = ch;
-        offCtx.drawImage(img, 0, 0, cw, ch);
-
-      } else {
-        continue; // skip unknown source types
-      }
-
-      // --- Step 2a: free-hand annotations (pen + highlighter) below polygons ---
-      if (ps && ps.annotations && ps.annotations.length > 0) {
-        ps.annotations.forEach(s => drawStroke(offCtx, s));
-      }
-
-      // --- Step 2: draw polygons on top ---
-      if (ps && ps.shapes && ps.shapes.length > 0) {
-        ps.shapes.forEach(function(shape) {
-          var cat = CATEGORIES[shape.type];
-          if (!cat || !shape.points || shape.points.length < 3) return;
-          offCtx.beginPath();
-          offCtx.moveTo(shape.points[0].x, shape.points[0].y);
-          for (var pi = 1; pi < shape.points.length; pi++) {
-            offCtx.lineTo(shape.points[pi].x, shape.points[pi].y);
-          }
-          offCtx.closePath();
-          offCtx.fillStyle = cat.fill;
-          offCtx.fill();
-          offCtx.strokeStyle = cat.stroke;
-          offCtx.lineWidth = 3;
-          offCtx.stroke();
-          if (ps.scalePPM) {
-            var area = calcPolygonAreaWithScale(shape.points, ps.scalePPM);
-            var cx = shape.points.reduce(function(s, p) { return s + p.x; }, 0) / shape.points.length;
-            var cy = shape.points.reduce(function(s, p) { return s + p.y; }, 0) / shape.points.length;
-            var fontSize = Math.max(18, Math.min(36, cw / 40));
-            offCtx.font = 'bold ' + fontSize + 'px sans-serif';
-            offCtx.textAlign = 'center';
-            offCtx.textBaseline = 'middle';
-            offCtx.strokeStyle = 'rgba(0,0,0,0.7)';
-            offCtx.lineWidth = 4;
-            offCtx.strokeText(area.toFixed(2) + ' m\u00B2', cx, cy);
-            offCtx.fillStyle = '#fff';
-            offCtx.fillText(area.toFixed(2) + ' m\u00B2', cx, cy);
-          }
-          offCtx.fillStyle = cat.stroke;
-          shape.points.forEach(function(p) {
-            offCtx.beginPath();
-            offCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-            offCtx.fill();
-          });
-        });
-      }
-
-      // --- Step 2b: measurements on top (with same anti-overlap layout) ---
-      if (ps && ps.measurements && ps.measurements.length > 0) {
-        var placements = computeMeasurementLayouts(ps.measurements, offCtx, cw);
-        placements.forEach(function(p) { drawMeasurement(p, offCtx); });
-      }
+      // --- Step 1: composite background + annotations + polygons + measurements ---
+      const offCanvas = await renderPageComposite(i);
+      if (!offCanvas) continue; // skip unknown source types
+      const cw = offCanvas.width;
+      const ch = offCanvas.height;
 
       var planDataUrl = offCanvas.toDataURL('image/jpeg', 0.92);
 
