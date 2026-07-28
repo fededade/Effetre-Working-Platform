@@ -1707,6 +1707,33 @@ function base64ToBuffer(b64) {
   return out;
 }
 
+// Superfici calcolate (m² per categoria + elenco poligoni), nella stessa forma
+// dell'anteprima dello step 6. Le aree non sono memorizzate nelle shape: qui
+// vengono ricavate da punti + scalePPM, così chi legge il file non deve
+// rifare la geometria. Legge solo lo stato, mai il DOM, quindi resta corretta
+// anche quando il salvataggio parte da uno step diverso dal 5.
+function buildSuperficiSnapshot() {
+  const tots = getGlobalCategoryTotals();
+  let grand = 0;
+  const out = {};
+  Object.keys(CATEGORIES).forEach(k => {
+    grand += tots[k];
+    out[k + '_mq'] = parseFloat(tots[k].toFixed(2));
+  });
+  out.totale_mq = parseFloat(grand.toFixed(2));
+  out.poligoni = getAllShapesFlat().map((s, i) => ({
+    id: i + 1,
+    categoria: s.type,
+    categoria_label: CATEGORIES[s.type] ? CATEGORIES[s.type].label : s.type,
+    area_mq: parseFloat(s.area_mq.toFixed(2)),
+    piano: s.piano || null,
+    vertici: s.points.length,
+    pagina: s.page,
+    pagina_label: s.pageLabel
+  }));
+  return out;
+}
+
 // Build the in-memory snapshot. Always saves the CURRENT page state too.
 function buildSessionSnapshot() {
   if (currentStep === 2 || allPageSources.length > 0) savePageState();
@@ -1731,6 +1758,12 @@ function buildSessionSnapshot() {
     selectedNord: selectedNord,
     confiniData: JSON.parse(JSON.stringify(confiniData || {})),
     dettagliData: JSON.parse(JSON.stringify(dettagliData || {})),
+    // Gli stessi confini sotto il nome usato dall'anteprima dello step 6 e da
+    // chi elabora il file a valle. `confiniData` resta perché è la chiave che
+    // applySessionSnapshot() rilegge: qui si aggiunge, non si rinomina, così
+    // il caricamento della sessione non cambia di una virgola.
+    confini: JSON.parse(JSON.stringify(confiniData || {})),
+    superfici: buildSuperficiSnapshot(),
     files: files,
     pages: pages,
     pageStates: JSON.parse(JSON.stringify(pageStates || {}))
