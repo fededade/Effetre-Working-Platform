@@ -86,6 +86,12 @@ avviso con il motivo dell'errore, l'ID del template e il servizio usati.
 - **Note cronologiche**: ogni nota viene salvata come nuova voce con **data, ora e utente**
   che l'ha inserita. Le note precedenti non vengono mai sovrascritte. Solo gli
   amministratori possono eliminare una singola nota, e l'eliminazione resta nello storico.
+- **Vista mobile**: sotto i 768px l'elenco pratiche diventa un insieme di schede, una
+  per pratica, che mostrano per intero numero, codice, **comune**, indirizzo, badge di
+  stato, assegnatario e ultima nota. I pulsanti azione stanno tutti nello schermo con
+  area di tocco di almeno 44px. L'intestazione si compatta con un menu ☰ e i filtri sono
+  a scomparsa, con il conteggio di quelli attivi. Oltre i 768px (tablet in orizzontale,
+  desktop) ricompare la tabella completa.
 - **Presa in carico senza sovrapposizioni**: l'assegnazione avviene tramite una transazione
   Firestore sul singolo documento. Se un'altra persona ha già preso la pratica,
   l'operazione viene rifiutata con un avviso invece di sovrascrivere l'assegnazione.
