@@ -516,13 +516,17 @@
             SERVICE_ID: "service_eak01rs",      // Da EmailJS Dashboard > Email Services
             TEMPLATE_ID: "template_95sgj1i",    // Da EmailJS Dashboard > Email Templates
             // 📎 Template dedicato alla notifica "nuovi documenti caricati".
-            // Crea su EmailJS un secondo template con queste variabili:
+            // ISTRUZIONI COMPLETE (testo dell'email già pronto da incollare):
+            //   docs/emailjs-template-nuovi-documenti.md
+            // In breve: su https://dashboard.emailjs.com → Email Templates → Create New Template,
+            // imposta il Template ID ESATTAMENTE a "template_nuovi_documenti" e incolla
+            // oggetto e contenuto dal file sopra. Nessuna altra modifica al codice.
+            // Variabili usate dal template:
             //   {{to_email}} {{to_name}} {{from_name}} {{numero_pratica}} {{codice}}
             //   {{comune}} {{indirizzo}} {{descrizione}} {{caricato_da}} {{data_caricamento}}
-            // e incolla qui il suo ID (es. "template_abc1234").
-            // Finché resta vuoto la segnalazione viene comunque registrata sulla pratica
-            // e notificata in-app, ma l'email NON viene inviata.
-            TEMPLATE_ID_DOCUMENTI: ""
+            // Se il template non esiste la segnalazione viene comunque registrata sulla
+            // pratica e notificata in-app, ma l'email NON parte (avviso esplicito a schermo).
+            TEMPLATE_ID_DOCUMENTI: "template_nuovi_documenti"
         };
         
         // Inizializza EmailJS
@@ -2488,7 +2492,11 @@
                     return { ok: true, email: destinatario.email };
                 } catch (error) {
                     console.error('❌ Errore invio email nuovi documenti:', error);
-                    return { ok: false, motivo: (error && (error.text || error.message)) || 'Errore durante l\'invio.' };
+                    const dettaglio = (error && (error.text || error.message)) || 'errore durante l\'invio';
+                    return {
+                        ok: false,
+                        motivo: `${dettaglio} (template EmailJS "${EMAILJS_CONFIG.TEMPLATE_ID_DOCUMENTI}", servizio "${EMAILJS_CONFIG.SERVICE_ID}")`
+                    };
                 }
             };
 

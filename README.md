@@ -43,39 +43,30 @@ Su Vercel, vai in **Settings → Environment Variables** e aggiungi:
 ### EmailJS
 - **Uso**: Recupero password via email + avviso "nuovi documenti caricati" al tecnico
 
-#### ⚠️ Template "nuovi documenti" da configurare
+#### ⚠️ Template "nuovi documenti" da creare (una tantum)
 
 La segnalazione *"Nuovi documenti caricati"* invia una email al tecnico assegnato alla
 pratica, usando l'indirizzo con cui è registrato nel gestionale.
 
-Per attivarla serve un **secondo template EmailJS** (il primo resta dedicato al recupero
-password):
+Serve un **secondo template EmailJS** (il primo resta dedicato al recupero password).
+EmailJS non permette di creare template via API, quindi va creato dal dashboard — ma
+oggetto e contenuto HTML sono **già pronti da incollare**:
 
-1. Vai su https://dashboard.emailjs.com → **Email Templates** → **Create New Template**
-2. Nel corpo del messaggio usa queste variabili:
+👉 **[docs/emailjs-template-nuovi-documenti.md](docs/emailjs-template-nuovi-documenti.md)**
 
-   | Variabile | Contenuto |
-   |-----------|-----------|
-   | `{{to_email}}` | email del tecnico (destinatario) |
-   | `{{to_name}}` | nome del tecnico |
-   | `{{numero_pratica}}` | numero della perizia |
-   | `{{codice}}` | codice pratica (ISP, PER, APE...) |
-   | `{{comune}}` | comune dell'immobile |
-   | `{{indirizzo}}` | indirizzo dell'immobile |
-   | `{{descrizione}}` | descrizione dei documenti caricati |
-   | `{{caricato_da}}` | chi ha effettuato il caricamento |
-   | `{{data_caricamento}}` | data e ora della segnalazione |
-   | `{{from_name}}` | mittente (Effetre Properties) |
+In sintesi:
 
-3. Copia l'**ID del template** e incollalo in `public/index.html`, in `EMAILJS_CONFIG`:
+1. <https://dashboard.emailjs.com> → **Email Templates** → **Create New Template**
+2. Nelle **Settings** imposta il **Template ID** esattamente a `template_nuovi_documenti`
+   (è già configurato nel codice: non serve modificare `public/index.html`)
+   e **To Email** a `{{to_email}}`
+3. Incolla oggetto e contenuto HTML dal file sopra, poi **Save**
 
-```js
-TEMPLATE_ID_DOCUMENTI: "template_xxxxxxx"   // <-- incolla qui
-```
+Il servizio email resta quello già collegato (`service_eak01rs`): non serve crearne uno nuovo.
 
-Finché il campo resta vuoto la segnalazione viene comunque registrata sulla pratica e
-notificata dentro il gestionale, ma **l'email non parte** (l'operatore riceve un avviso
-esplicito a schermo).
+Finché il template non esiste la segnalazione viene comunque registrata sulla pratica e
+notificata dentro il gestionale, ma **l'email non parte**: l'operatore riceve a schermo un
+avviso con il motivo dell'errore, l'ID del template e il servizio usati.
 
 ### Google Gemini API
 - **Uso**: Analisi AI di atti e visure catastali
