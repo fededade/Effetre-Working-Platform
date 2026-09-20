@@ -52,29 +52,108 @@
         .badge-urgente { background-color: #ea580c; color: white; }
         .badge-documenti { background-color: #7c3aed; color: white; }
         /* Badge cliccabile: apre l'elenco dei documenti caricati */
-        /* Pulsante "Nuovi documenti": alone arancione che respira.
-           Lento (2.6s) e senza variazioni di dimensione o opacità del testo,
-           per segnalare senza infastidire. */
+        /* ==========================================================
+           SISTEMA DEI PULSANTI IN TESTATA
+           Prima ogni azione aveva un colore diverso (indaco, verde
+           acqua, verde, arancione, viola, grigio): nessuna gerarchia,
+           e l'avviso arancione si confondeva con "Statistiche".
+           Ora: azioni secondarie in vetro sul blu, una sola azione in
+           arancione — l'avviso — e l'uscita in bianco pieno.
+           ========================================================== */
+        .btn-testata {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.13);
+            border: 1px solid rgba(255, 255, 255, 0.20);
+            color: #ffffff;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.82rem;
+            line-height: 1.2;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background .15s ease, border-color .15s ease, transform .1s ease;
+        }
+        .btn-testata:hover {
+            background: rgba(255, 255, 255, 0.24);
+            border-color: rgba(255, 255, 255, 0.38);
+        }
+        .btn-testata:active { transform: translateY(1px); }
+        .btn-testata:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+        .btn-testata.attivo {
+            background: #ffffff;
+            border-color: #ffffff;
+            color: #1d4ed8;
+        }
+        .btn-testata-uscita {
+            background: #ffffff;
+            border-color: #ffffff;
+            color: #1d4ed8;
+        }
+        .btn-testata-uscita:hover { background: #eff6ff; border-color: #eff6ff; }
+
+        /* L'unico pulsante colorato della testata: l'avviso documenti.
+           Alone che respira + leggero schiarimento del fondo: si nota
+           anche con la coda dell'occhio, senza sobbalzi di dimensione. */
         @keyframes respiro-documenti {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.50); }
-            50%      { box-shadow: 0 0 0 9px rgba(249, 115, 22, 0); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.70); background-color: #ea580c; }
+            50%      { box-shadow: 0 0 0 10px rgba(251, 146, 60, 0); background-color: #fb923c; }
         }
         .pulsante-documenti {
             background-color: #ea580c;
+            border-color: #ea580c;
             color: #ffffff;
         }
         .pulsante-documenti.in-attesa {
-            animation: respiro-documenti 2.6s ease-in-out infinite;
+            animation: respiro-documenti 2.4s ease-in-out infinite;
         }
-        .pulsante-documenti:hover { background-color: #c2410c; }
+        .pulsante-documenti:hover {
+            background-color: #c2410c;
+            border-color: #c2410c;
+        }
         .contatore-documenti {
             display: inline-block;
             min-width: 20px;
             padding: 0 6px;
-            margin-left: 6px;
             border-radius: 9999px;
-            background: rgba(255, 255, 255, 0.28);
+            background: rgba(0, 0, 0, 0.22);
             font-variant-numeric: tabular-nums;
+            text-align: center;
+        }
+        /* Colonna Azioni: due colonne allineate invece di link che vanno
+           a capo a caso. Stessa dimensione e stesso peso per tutti; il
+           colore resta a distinguere il tipo di azione. */
+        .azioni-tabella {
+            /* due colonne dimensionate sul contenuto: si allineano davvero,
+               a differenza del flex-wrap che lasciava i link sfalsati */
+            /* Una sola colonna: la larghezza disponibile nella tabella non
+               basta per due, e la seconda finiva tagliata fuori dal bordo. */
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 2px;
+        }
+        .azioni-tabella button {
+            text-align: left;
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 2px 0;
+            background: none;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .azioni-tabella button:hover { text-decoration: underline; }
+        .azioni-tabella button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+        .versione-chip {
+            font-size: 0.65rem;
+            font-family: ui-monospace, monospace;
+            color: rgba(255, 255, 255, 0.55);
+            letter-spacing: .02em;
         }
         @media (prefers-reduced-motion: reduce) {
             .pulsante-documenti.in-attesa { animation: none; }
@@ -6631,7 +6710,7 @@
                                     {praticheConDocumenti.length > 0 && (
                                         <button
                                             onClick={mostraPraticheConDocumenti}
-                                            className={`pulsante-documenti pulsante-documenti-mobile ${documentiNonVisti > 0 ? 'in-attesa' : ''}`}
+                                            className="pulsante-documenti pulsante-documenti-mobile in-attesa"
                                             title="Perizie con documentazione caricata"
                                         >
                                             📎 {praticheConDocumenti.length}
@@ -6718,106 +6797,92 @@
                                     <div className="flex items-center gap-4">
                                         <img src={LOGO_BASE64} alt="Effetre Properties" className="h-10 w-auto" />
                                         <div>
-                                            <div className="flex items-center gap-3">
-                                                <h1 className="text-2xl font-bold">Effetre Properties - Gestione Pratiche</h1>
-                                                <span className="bg-blue-900 bg-opacity-50 text-blue-200 text-xs px-2 py-1 rounded font-mono">
-                                                    v{VERSION}
-                                                </span>
-                                            </div>
-                                            <p className="text-blue-100 text-sm">{pratiche.length} pratiche totali</p>
+                                            <h1 className="text-xl font-bold leading-tight">Effetre Properties</h1>
+                                            <p className="text-blue-200 text-xs leading-tight">
+                                                Gestione Pratiche · {pratiche.length} pratiche
+                                                <span className="versione-chip"> · v{VERSION.split(' ')[0]}</span>
+                                            </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-right">
-                                            <div className="font-semibold">{utenteCorrente.nome}</div>
-                                            <div className="text-sm text-blue-100">{utenteCorrente.ruolo}</div>
+                                    <div className="flex items-center gap-3 flex-wrap justify-end">
+                                        <div className="text-right leading-tight mr-1">
+                                            <div className="font-semibold text-sm">{utenteCorrente.nome}</div>
+                                            <div className="text-xs text-blue-200">{utenteCorrente.ruolo}</div>
                                         </div>
-                                    
-                                        {/* 📎 Perizie con documentazione caricata da lavorare.
-                                            Pulsa finché ce n'è almeno una non ancora visionata. */}
+
+                                        <div className="h-8 w-px bg-white bg-opacity-25"></div>
+
+                                        {/* 📎 L'unica azione colorata della testata: la coda dei
+                                            documenti da lavorare. Pulsa finché la coda non è vuota. */}
                                         {praticheConDocumenti.length > 0 && (
                                             <button
                                                 onClick={mostraPraticheConDocumenti}
-                                                className={`pulsante-documenti px-4 py-2 rounded-lg font-semibold transition-colors text-sm flex items-center ${documentiNonVisti > 0 ? 'in-attesa' : ''} ${filtro === 'documenti' ? 'ring-2 ring-white' : ''}`}
-                                                title={documentiNonVisti > 0
-                                                    ? `${documentiNonVisti} ${documentiNonVisti === 1 ? 'perizia con documenti ancora da visionare' : 'perizie con documenti ancora da visionare'}`
-                                                    : 'Perizie con documentazione caricata ancora da lavorare'}
+                                                className={`btn-testata pulsante-documenti in-attesa ${filtro === 'documenti' ? 'attivo' : ''}`}
+                                                title={`${praticheConDocumenti.length} ${praticheConDocumenti.length === 1 ? 'perizia con documentazione caricata' : 'perizie con documentazione caricata'}${documentiNonVisti > 0 ? ' — ' + documentiNonVisti + ' da visionare' : ''}`}
                                             >
                                                 📎 Nuovi documenti
                                                 <span className="contatore-documenti">{praticheConDocumenti.length}</span>
                                             </button>
                                         )}
 
-                                        {/* Pulsante Analisi Documentale - PER TUTTI */}
-                                        <button 
+                                        <button
                                             onClick={() => window.open('analisi.html', '_blank')}
-                                            className="bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-600 transition-colors text-sm flex items-center gap-2"
-                                            title="Apri Analisi Documentale"
+                                            className="btn-testata"
+                                            title="Analisi automatica di atti e visure"
                                         >
-                                            📄 Analisi Documentale
+                                            📄 Analisi
                                         </button>
-                                    
-                                        {/* Pulsante Inserisci Pratica - SOLO ADMIN/SUPERADMIN */}
-                                        {(utenteCorrente.isAdmin || utenteCorrente.isSuperAdmin) && (
-                                            <button 
-                                                onClick={apriFormNuovaPratica}
-                                                className="bg-teal-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-teal-700 transition-colors text-sm flex items-center gap-2"
-                                                title="Inserisci nuova pratica manualmente"
-                                            >
-                                                ➕ Inserisci Pratica
-                                            </button>
-                                        )}
-                                    
+
                                         {(utenteCorrente.isAdmin || utenteCorrente.isSuperAdmin) && (
                                             <>
-                                                <button 
+                                                <button
+                                                    onClick={apriFormNuovaPratica}
+                                                    className="btn-testata"
+                                                    title="Inserisci una nuova pratica manualmente"
+                                                >
+                                                    ➕ Pratica
+                                                </button>
+                                                <button
                                                     onClick={() => setSchermata('upload')}
-                                                    className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors text-sm"
-                                                    title="Carica nuovo file KML/KMZ"
+                                                    className="btn-testata"
+                                                    title="Carica un nuovo file KML/KMZ"
                                                 >
                                                     📁 Import
                                                 </button>
-                                                <button 
+                                                <button
                                                     onClick={() => { setVistaStatistiche(!vistaStatistiche); }}
-                                                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                                                        vistaStatistiche 
-                                                            ? 'bg-orange-600 text-white hover:bg-orange-700' 
-                                                            : 'bg-orange-500 text-white hover:bg-orange-600'
-                                                    }`}
-                                                    title="Visualizza statistiche"
+                                                    className={`btn-testata ${vistaStatistiche ? 'attivo' : ''}`}
+                                                    title="Statistiche di lavorazione"
                                                 >
                                                     📊 Statistiche
                                                 </button>
                                             </>
                                         )}
+
                                         {utenteCorrente.isSuperAdmin && (
-                                            <>
-                                                <button 
-                                                    onClick={() => setSchermata('gestione-utenti')}
-                                                    className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors text-sm"
-                                                    title="Gestione Utenti"
-                                                >
-                                                    👥 Utenti
-                                                </button>
-                                                <button 
-                                                    onClick={cancellaTuttiIFiltri}
-                                                    className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors text-sm"
-                                                    title="Cancella tutti i filtri"
-                                                >
-                                                    🚫 Reset Filtri
-                                                </button>
-                                            </>
-                                        )}
-                                        {utenteCorrente.isAdmin && !utenteCorrente.isSuperAdmin && (
-                                            <button 
-                                                onClick={cancellaTuttiIFiltri}
-                                                className="bg-gray-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors text-sm"
-                                                title="Cancella tutti i filtri"
+                                            <button
+                                                onClick={() => setSchermata('gestione-utenti')}
+                                                className="btn-testata"
+                                                title="Gestione utenti"
                                             >
-                                                🚫 Reset Filtri
+                                                👥 Utenti
                                             </button>
                                         )}
-                                        <button onClick={() => { setUtenteCorrente(null); setSchermata('home'); }} className="bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+
+                                        {utenteCorrente.isAdmin && (
+                                            <button
+                                                onClick={cancellaTuttiIFiltri}
+                                                className="btn-testata"
+                                                title="Azzera tutti i filtri"
+                                            >
+                                                🚫 Filtri
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => { setUtenteCorrente(null); setSchermata('home'); }}
+                                            className="btn-testata btn-testata-uscita"
+                                        >
                                             Esci
                                         </button>
                                     </div>
@@ -6873,7 +6938,7 @@
                                                     }}
                                                     className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                                                         filtroTemporale === f && !dataInizio && !dataFine
-                                                            ? 'bg-green-600 text-white'
+                                                            ? 'bg-blue-600 text-white'
                                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                                     }`}
                                                 >
@@ -6968,10 +7033,10 @@
                                     <div className="flex gap-2 flex-wrap">
                                         <button
                                             onClick={() => setVistaAgenda(!vistaAgenda)}
-                                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                            className={`px-4 py-2 rounded-lg font-medium transition-colors border ${
                                                 vistaAgenda
-                                                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                                                    : 'bg-purple-500 text-white hover:bg-purple-600'
+                                                    ? 'bg-purple-600 text-white border-purple-600 hover:bg-purple-700'
+                                                    : 'bg-white text-purple-700 border-purple-300 hover:bg-purple-50'
                                             }`}
                                         >
                                             {vistaAgenda ? '📋 Vista Pratiche' : '📅 Agenda Sopralluoghi'} ({pratiche.length})
@@ -7517,7 +7582,7 @@
                                                                         )}
                                                                     </td>
                                                                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                                                        <div className="flex gap-2 flex-wrap">
+                                                                        <div className="azioni-tabella">
                                                                             {renderAzioniPratica(pratica, false)}
                                                                         </div>
                                                                     </td>
