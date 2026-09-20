@@ -51,6 +51,15 @@
         .badge-prelavorata { background-color: #f59e0b; color: white; } /* Arancione */
         .badge-urgente { background-color: #ea580c; color: white; }
         .badge-documenti { background-color: #7c3aed; color: white; }
+        /* Badge cliccabile: apre l'elenco dei documenti caricati */
+        button.badge {
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            transition: filter 0.15s;
+        }
+        button.badge:hover { filter: brightness(1.12); }
+        button.badge:focus-visible { outline: 2px solid #4c1d95; outline-offset: 2px; }
         /* Pratica contrassegnata come URGENTE dall'amministratore */
         .pratica-urgente { box-shadow: inset 5px 0 0 0 #f97316; }
         .pallino-urgenza {
@@ -2592,6 +2601,34 @@
                 }];
             };
 
+            // 📎 Elenco dei caricamenti di documenti su una pratica.
+            // Le pratiche precedenti a questa versione non hanno l'elenco:
+            // viene ricostruito dalle note, e in ultima istanza dall'ultima
+            // segnalazione registrata.
+            const getDocumentiCaricati = (pratica) => {
+                if (!pratica) return [];
+                if (Array.isArray(pratica.documentiCaricati)) return pratica.documentiCaricati;
+
+                const daNote = (pratica.noteCronologia || [])
+                    .filter(n => n.tipo === 'documenti')
+                    .map(n => ({
+                        data: n.data,
+                        dataLocale: n.dataLocale,
+                        utente: n.utente,
+                        descrizione: (n.testo || '')
+                            .replace(/^\s*📎\s*Nuovi documenti caricati\.?\s*/, '')
+                            .trim()
+                    }));
+                if (daNote.length > 0) return daNote;
+
+                return pratica.ultimaSegnalazioneDocumenti ? [pratica.ultimaSegnalazioneDocumenti] : [];
+            };
+
+            const apriElencoDocumenti = (pratica) => {
+                setPraticaSelezionata(pratica);
+                setMostraModal('documenti-elenco');
+            };
+
             const getUltimaNota = (pratica) => {
                 const note = getNoteCronologia(pratica);
                 return note.length > 0 ? note[note.length - 1] : null;
@@ -2744,6 +2781,8 @@
                             ...p,
                             documentiNuovi: true,
                             ultimaSegnalazioneDocumenti: segnalazione,
+                            // Elenco completo dei caricamenti, consultabile dal badge
+                            documentiCaricati: [...getDocumentiCaricati(p), segnalazione],
                             noteCronologia: [...getNoteCronologia(p), notaDocumenti],
                             storico: [...(p.storico || []), {
                                 data: adesso.toLocaleString('it-IT'),
@@ -3756,7 +3795,7 @@
                         {/* 📎 Segnalazione nuovi documenti - operatore/amministratore */}
                         {isAdmin && pratica.utenteAssegnato && bottone(
                             'documenti', '#4338ca', 'text-indigo-600 hover:text-indigo-900',
-                            '📎 Nuovi documenti', () => apriSegnalazioneDocumenti(pratica.id),
+                            '📎 Segnala documenti', () => apriSegnalazioneDocumenti(pratica.id),
                             { title: 'Segnala nuovi documenti e avvisa via email il tecnico assegnato' }
                         )}
 
@@ -3838,7 +3877,15 @@
                         {(pratica.urgente || pratica.documentiNuovi || pratica.prelavorata || giorniSospesa > 0) && (
                             <div className="pratica-card-badges">
                                 {pratica.urgente && <span className="badge badge-urgente">🔥 URGENTE</span>}
-                                {pratica.documentiNuovi && <span className="badge badge-documenti">📎 Nuovi documenti</span>}
+                                {pratica.documentiNuovi && (
+                                    <button
+                                        className="badge badge-documenti"
+                                        onClick={() => apriElencoDocumenti(pratica)}
+                                        title="Vedi l'elenco dei documenti caricati"
+                                    >
+                                        📎 Nuovi documenti
+                                    </button>
+                                )}
                                 {pratica.prelavorata && <span className="badge badge-prelavorata">📝 Prelavorata</span>}
                                 {giorniSospesa > 0 && <span className="badge reminder-badge">⏰ {giorniSospesa}gg</span>}
                             </div>
@@ -7114,9 +7161,13 @@
                                                                             </span>
                                                                         )}
                                                                         {pratica.documentiNuovi && (
-                                                                            <span className="badge badge-documenti">
+                                                                            <button
+                                                                                className="badge badge-documenti"
+                                                                                onClick={() => apriElencoDocumenti(pratica)}
+                                                                                title="Vedi l'elenco dei documenti caricati"
+                                                                            >
                                                                                 📎 Nuovi documenti
-                                                                            </span>
+                                                                            </button>
                                                                         )}
                                                                         {pratica.prelavorata && (
                                                                             <span className="badge badge-prelavorata">
@@ -7329,12 +7380,13 @@
                                                                             </span>
                                                                         )}
                                                                         {pratica.documentiNuovi && (
-                                                                            <span
+                                                                            <button
                                                                                 className="badge badge-documenti"
-                                                                                title={pratica.ultimaSegnalazioneDocumenti ? `Segnalati da ${pratica.ultimaSegnalazioneDocumenti.utente} il ${pratica.ultimaSegnalazioneDocumenti.dataLocale}` : ''}
+                                                                                onClick={() => apriElencoDocumenti(pratica)}
+                                                                                title="Vedi l'elenco dei documenti caricati"
                                                                             >
                                                                                 📎 Nuovi documenti
-                                                                            </span>
+                                                                            </button>
                                                                         )}
                                                                         {pratica.prelavorata && (
                                                                             <span className="badge badge-prelavorata">
@@ -7739,6 +7791,77 @@
                                         className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 disabled:opacity-50"
                                     >
                                         Annulla
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 📎 Modale Elenco Documenti Caricati
+                        Volutamente separato dallo Storico: qui SOLO i caricamenti
+                        di documentazione, la cronologia completa resta nello Storico. */}
+                    {mostraModal === 'documenti-elenco' && praticaSelezionata && (
+                        <div className="modal-overlay" onClick={() => setMostraModal(null)}>
+                            <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                                <h3 className="text-xl font-bold mb-1">📎 Documenti caricati</h3>
+                                <p className="text-sm text-gray-600 mb-4">
+                                    Pratica <strong>{praticaSelezionata.numero}</strong>
+                                    {praticaSelezionata.comune && ` — ${praticaSelezionata.comune}`}
+                                </p>
+
+                                {(() => {
+                                    const elenco = getDocumentiCaricati(praticaSelezionata);
+                                    if (elenco.length === 0) {
+                                        return (
+                                            <p className="text-gray-500 italic py-4">
+                                                Nessun caricamento registrato su questa pratica.
+                                            </p>
+                                        );
+                                    }
+                                    return (
+                                        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-gray-50">
+                                            {[...elenco].reverse().map((doc, i) => (
+                                                <div key={doc.data || i} className="p-3">
+                                                    <p className="text-sm text-gray-900 font-medium whitespace-pre-wrap">
+                                                        {doc.descrizione && doc.descrizione.trim()
+                                                            ? doc.descrizione
+                                                            : 'Documentazione aggiornata (nessuna descrizione)'}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        👤 {doc.utente || 'Non indicato'}
+                                                        {doc.dataLocale && <> · 🕒 {doc.dataLocale}</>}
+                                                    </p>
+                                                    {doc.emailInviata !== undefined && (
+                                                        <p className={`text-xs mt-1 ${doc.emailInviata ? 'text-green-700' : 'text-red-600'}`}>
+                                                            {doc.emailInviata
+                                                                ? `✉️ Email inviata${doc.destinatario ? ' a ' + doc.destinatario : ''}`
+                                                                : '⚠️ Email non inviata'}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+
+                                <p className="text-xs text-gray-500 mt-4">
+                                    La cronologia completa della pratica è disponibile dal pulsante 📜 Storico.
+                                </p>
+
+                                <div className="flex gap-3 mt-4">
+                                    {praticaSelezionata.documentiNuovi && praticaSelezionata.utenteAssegnato?.id === utenteCorrente.id && (
+                                        <button
+                                            onClick={() => { presaVisioneDocumenti(praticaSelezionata.id); setMostraModal(null); }}
+                                            className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-semibold"
+                                        >
+                                            📥 Presa visione
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setMostraModal(null)}
+                                        className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+                                    >
+                                        Chiudi
                                     </button>
                                 </div>
                             </div>
