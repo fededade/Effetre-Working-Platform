@@ -69,9 +69,20 @@ e incolla esattamente questo:
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
     <tr>
-      <td style="background-color:#1a1a1a;padding:24px 28px;border-bottom:4px solid #d4af37;">
-        <p style="margin:0;color:#d4af37;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;font-weight:bold;">Effetre Properties</p>
-        <p style="margin:6px 0 0;color:#ffffff;font-size:20px;font-weight:bold;">Nuovi documenti caricati</p>
+      <td style="background-color:#1a1a1a;padding:22px 28px;border-bottom:4px solid #d4af37;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="padding-right:14px;vertical-align:middle;">
+              <img src="https://effetre-working-platform.vercel.app/Logo%20Effetre_1.jpg"
+                   width="46" height="46" alt="Effetre Properties"
+                   style="display:block;width:46px;height:46px;border:0;border-radius:6px;">
+            </td>
+            <td style="vertical-align:middle;">
+              <p style="margin:0;color:#d4af37;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;font-weight:bold;">Effetre Properties</p>
+              <p style="margin:5px 0 0;color:#ffffff;font-size:19px;font-weight:bold;">Nuovi documenti caricati</p>
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
 
@@ -128,6 +139,26 @@ e incolla esattamente questo:
   </table>
 </div>
 ```
+
+### Il logo
+
+Il logo è caricato dall'indirizzo pubblico del gestionale:
+
+```
+https://effetre-working-platform.vercel.app/Logo%20Effetre_1.jpg
+```
+
+Il file è `public/Logo Effetre_1.jpg` nel repository, quindi viene pubblicato a ogni
+deploy e l'indirizzo resta valido da solo. Due avvertenze:
+
+- **Lo spazio nel nome del file va scritto `%20`.** Senza, l'immagine non carica.
+- **Se cambia il dominio del gestionale** (dominio personalizzato, progetto Vercel
+  rinominato) va aggiornato anche questo indirizzo nel template.
+
+Quasi tutti i programmi di posta **bloccano le immagini finché il destinatario non
+clicca "mostra immagini"**. Per questo la scritta dorata *Effetre Properties* resta
+nell'intestazione come testo: anche con le immagini bloccate il messaggio si riconosce,
+e al posto del logo compare la scritta alternativa "Effetre Properties".
 
 ---
 

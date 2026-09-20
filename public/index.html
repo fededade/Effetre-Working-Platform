@@ -698,7 +698,10 @@
         // ============================================================
         const EMAILJS_CONFIG = {
             PUBLIC_KEY: "HeYuxWj8J-z2JGY3n",      // Da EmailJS Dashboard > Account > API Keys
-            SERVICE_ID: "service_eak01rs",      // Da EmailJS Dashboard > Email Services
+            // Unico servizio configurato su EmailJS (Gmail, contrassegnato DEFAULT).
+            // Se il servizio viene ricreato EmailJS assegna un ID nuovo e casuale:
+            // va riallineato qui, altrimenti ogni invio fallisce in silenzio.
+            SERVICE_ID: "service_1iv6rin",      // Da EmailJS Dashboard > Email Services
             TEMPLATE_ID: "template_95sgj1i",    // Da EmailJS Dashboard > Email Templates
             // 📎 Template dedicato alla notifica "nuovi documenti caricati".
             // ISTRUZIONI COMPLETE (testo dell'email già pronto da incollare):
